@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Brasa Burger Co. — Hambúrgueres artesanais premium</title>
+<meta name="description" content="Brasa Burger Co. — hambúrgueres artesanais no fogo, entrega em Centro, Jardins e Vila Nova. Peça online.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/components.css">
+</head>
+<body data-theme="dark">
+
+<!-- ============================= HEADER ============================= -->
+<header class="site-header">
+  <div class="site-header__inner">
+    <div class="brand">
+      <img src="assets/brand/logo-icon.png" alt="Brasa Burger Co.">
+      <span class="brand__name">BRASA <span>BURGER CO.</span></span>
+    </div>
+    <div class="status-pill" id="statusPill">
+      <span class="status-dot"></span>
+      <span id="statusText">Aberto agora · entrega em 30–45 min</span>
+    </div>
+    <nav class="main-nav">
+      <a href="#inicio">Início</a>
+      <a href="#cardapio">Cardápio</a>
+      <a href="#promocoes">Promoções</a>
+      <a href="#duvidas">Dúvidas</a>
+    </nav>
+    <div class="header-actions">
+      <button class="track-link" id="openTrackBtn">Acompanhar pedido</button>
+      <button class="icon-btn" id="openCartBtn" aria-label="Abrir sacola">
+        🛒
+        <span class="cart-badge" id="cartCount" hidden>0</span>
+      </button>
+      <button class="icon-btn" id="openAccountBtn" aria-label="Minha conta">👤</button>
+    </div>
+  </div>
+</header>
+
+<!-- ============================= HERO ============================= -->
+<section class="hero" id="inicio">
+  <div class="hero__bg">
+    <img src="assets/brand/hero-burger.jpg" alt="Hambúrguer duplo Brasa Burger com bacon e queijo derretido">
+    <div class="hero__scrim"></div>
+  </div>
+  <div class="embers" id="embers"></div>
+  <div class="hero__content">
+    <div class="hero__coupon">Use o cupom <strong>BRASA15</strong> e ganhe 15% OFF</div>
+    <h1>O burger que <br><em>acende a noite.</em></h1>
+    <p>Hambúrgueres artesanais grelhados na brasa, montados na hora — do Centro, Jardins e Vila Nova direto pra sua casa.</p>
+    <div class="hero__ctas">
+      <a href="#cardapio" class="btn btn-primary">Ver cardápio</a>
+      <a href="#duvidas" class="btn btn-secondary">Como funciona</a>
+    </div>
+  </div>
+</section>
+
+<!-- ============================= BANNERS PROMOCIONAIS (do admin) ============================= -->
+<section class="container" id="bannersStrip" style="display:none; margin: 28px auto;">
+  <div id="bannersStripInner" style="display:flex; gap:16px; overflow-x:auto; scroll-snap-type:x mandatory; padding-bottom:4px;"></div>
+</section>
+
+<!-- ============================= CATEGORIAS ============================= -->
+<nav class="categories" aria-label="Categorias do cardápio">
+  <div class="categories__scroll" id="categoryScroll">
+    <button class="chip is-active" data-cat="todos">Todos</button>
+    <button class="chip" data-cat="mais-pedidos">Mais pedidos</button>
+    <button class="chip" data-cat="hamburgueres">Hambúrgueres</button>
+    <button class="chip" data-cat="combos">Combos</button>
+    <button class="chip" data-cat="porcoes">Porções</button>
+    <button class="chip" data-cat="bebidas">Bebidas</button>
+    <button class="chip" data-cat="sobremesas">Sobremesas</button>
+  </div>
+</nav>
+
+<!-- ============================= CARDÁPIO ============================= -->
+<main class="container menu-section" id="cardapio">
+  <div id="menuRoot"><!-- gerado via JS --></div>
+</main>
+
+<!-- ============================= BANNER DE OFERTA ============================= -->
+<section class="promo-banner container" id="promocoes">
+  <div class="promo-banner__inner">
+    <div>
+      <span class="eyebrow">Oferta da brasa</span>
+      <h2>2 burgers.<br>1 noite memorável.</h2>
+      <a href="#cardapio" class="btn btn-primary" style="margin-top:18px;">Ver oferta →</a>
+    </div>
+    <div class="promo-banner__coupon">
+      <span class="eyebrow">Cupom</span>
+      <strong>QUARTA</strong>
+    </div>
+  </div>
+</section>
+
+<!-- ============================= SEU PEDIDO EM 3 PASSOS ============================= -->
+<section class="steps-section container">
+  <div class="steps-section__head">
+    <span class="eyebrow">Simples como deve ser</span>
+    <h2>Seu pedido em 3 passos</h2>
+  </div>
+  <div class="steps-grid">
+    <div class="step-card">
+      <span class="step-num">01</span>
+      <h3>Escolha</h3>
+      <p>Monte seu pedido no cardápio, com todos os adicionais do jeito que você gosta.</p>
+    </div>
+    <div class="step-card">
+      <span class="step-num">02</span>
+      <h3>Informe onde</h3>
+      <p>Escolha entrega ou retirada, e conte pra gente onde encontrar você.</p>
+    </div>
+    <div class="step-card">
+      <span class="step-num">03</span>
+      <h3>A brasa faz o resto</h3>
+      <p>Seu pedido vai direto pra grelha e chega quentinho, no seu tempo.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================= FAQ ============================= -->
+<section class="faq-section container" id="duvidas">
+  <div class="steps-section__head">
+    <span class="eyebrow">Ficou com dúvida?</span>
+    <h2>Perguntas frequentes</h2>
+  </div>
+  <div class="faq-list" id="faqList">
+    <div class="faq-item">
+      <button class="faq-question">Qual é o horário de funcionamento?<span class="faq-icon">+</span></button>
+      <div class="faq-answer"><p>Funcionamos de terça a domingo, das 18h às 23h30. Segundas-feiras não abrimos.</p></div>
+    </div>
+    <div class="faq-item">
+      <button class="faq-question">Quais são as formas de pagamento?<span class="faq-icon">+</span></button>
+      <div class="faq-answer"><p>Aceitamos Pix, cartão de débito, cartão de crédito e dinheiro, pagos na entrega ou retirada.</p></div>
+    </div>
+    <div class="faq-item">
+      <button class="faq-question">Qual é a taxa de entrega?<span class="faq-icon">+</span></button>
+      <div class="faq-answer"><p>Varia por bairro: Centro R$ 6,90, Jardins R$ 8,90 e Vila Nova R$ 5,90. Retirada no balcão é gratuita.</p></div>
+    </div>
+    <div class="faq-item">
+      <button class="faq-question">Quanto tempo demora?<span class="faq-icon">+</span></button>
+      <div class="faq-answer"><p>Em média de 30 a 45 minutos para entrega, e cerca de 20 minutos para retirada no balcão.</p></div>
+    </div>
+    <div class="faq-item">
+      <button class="faq-question">Como acompanhar o pedido?<span class="faq-icon">+</span></button>
+      <div class="faq-answer"><p>Use o link "Acompanhar pedido" no topo do site com o e-mail usado na compra para ver o status em tempo real.</p></div>
+    </div>
+    <div class="faq-item">
+      <button class="faq-question">Posso retirar no local?<span class="faq-icon">+</span></button>
+      <div class="faq-answer"><p>Pode sim! Escolha "Retirada" no checkout — seu pedido fica pronto no balcão em até 30 minutos, sem taxa de entrega.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================= FOOTER ============================= -->
+<footer class="site-footer">
+  <div class="container footer-grid">
+    <div>
+      <h4>Brasa Burger Co.</h4>
+      <p>Rua das Brasas, 147 — Centro.<br>Entregamos em Centro, Jardins e Vila Nova.</p>
+      <p>Terça a domingo, 18h às 23h30.</p>
+    </div>
+    <div>
+      <h4>Atendimento</h4>
+      <p>WhatsApp (11) 99999-2026</p>
+      <p>Pagamento: dinheiro, Pix, débito ou crédito na entrega/retirada.</p>
+    </div>
+    <div>
+      <h4>Entrega</h4>
+      <p>Retirada grátis no balcão.</p>
+      <p>Centro R$ 6,90 · Jardins R$ 8,90 · Vila Nova R$ 5,90.</p>
+    </div>
+  </div>
+  <p class="footer-bottom">© 2026 Brasa Burger Co. Todos os direitos reservados.</p>
+</footer>
+
+<!-- ============================= BARRA FIXA MOBILE ============================= -->
+<button class="mobile-cart-bar" id="mobileCartBar">
+  <span><span class="count-pill" id="mobileCartCount">0</span> Ver carrinho</span>
+  <span id="mobileCartTotal">R$ 0,00</span>
+</button>
+
+<!-- ============================= BOTÕES FLUTUANTES ============================= -->
+<div class="float-stack">
+  <button class="fab fab-theme" id="themeToggle" aria-label="Alternar tema claro/escuro">🌙</button>
+  <a class="fab fab-whatsapp" id="whatsappFab" href="https://wa.me/5511999992026" target="_blank" rel="noopener" aria-label="Falar no WhatsApp">
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.39 1.26 4.81L2 22l5.42-1.42a9.9 9.9 0 0 0 4.62 1.15h.01c5.46 0 9.9-4.45 9.9-9.91C21.95 6.45 17.5 2 12.04 2zm0 18.06h-.01a8.2 8.2 0 0 1-4.18-1.15l-.3-.18-3.11.82.83-3.03-.2-.31a8.13 8.13 0 0 1-1.26-4.3c0-4.51 3.67-8.18 8.24-8.18 2.2 0 4.27.86 5.83 2.42a8.15 8.15 0 0 1 2.41 5.8c0 4.52-3.67 8.15-8.25 8.15zm4.52-6.12c-.25-.12-1.46-.72-1.69-.8-.23-.08-.39-.12-.56.13-.17.24-.64.8-.78.96-.14.17-.29.19-.53.06-.25-.12-1.04-.38-1.98-1.22-.73-.65-1.23-1.46-1.37-1.7-.14-.25-.02-.38.11-.5.11-.11.25-.29.37-.43.12-.14.16-.24.24-.4.08-.17.04-.31-.02-.43-.06-.12-.56-1.34-.76-1.84-.2-.48-.4-.42-.56-.42-.14 0-.31-.02-.47-.02-.17 0-.43.06-.66.31-.23.24-.86.85-.86 2.06s.89 2.39 1.01 2.56c.12.17 1.75 2.67 4.24 3.74.59.26 1.05.41 1.41.52.59.19 1.13.16 1.55.1.47-.07 1.46-.6 1.67-1.18.2-.58.2-1.08.14-1.18-.06-.1-.22-.16-.47-.28z"/></svg>
+  </a>
+</div>
+
+<!-- ============================= BACKDROP ============================= -->
+<div class="backdrop" id="backdrop"></div>
+
+<!-- ============================= CARRINHO / SACOLA ============================= -->
+<aside class="cart-drawer" id="cartDrawer" aria-label="Sua sacola">
+  <div class="drawer-header">
+    <h2>Sua sacola</h2>
+    <button class="close-btn" id="closeCartBtn" aria-label="Fechar sacola">✕</button>
+  </div>
+  <div class="drawer-scroll">
+    <div id="quickAccessArea"><!-- gerado via JS: acesso rápido (entrar/cadastrar) --></div>
+    <div class="cart-items" id="cartItems"><!-- gerado via JS --></div>
+    <div id="couponArea"></div>
+    <div class="cart-summary" id="cartSummary"><!-- gerado via JS --></div>
+    <div id="inlineCheckoutArea"><!-- gerado via JS: finalizar pedido (3 etapas) --></div>
+  </div>
+</aside>
+
+<!-- ============================= MODAL PRODUTO ============================= -->
+<div class="modal" id="productModal" role="dialog" aria-modal="true">
+  <div id="productModalContent"><!-- gerado via JS --></div>
+</div>
+
+<!-- ============================= MODAL MINHA CONTA ============================= -->
+<div class="modal modal--account" id="accountModal" role="dialog" aria-modal="true">
+  <div class="modal__body" id="accountModalContent"><!-- gerado via JS --></div>
+</div>
+
+<!-- Modal de pagamento Pix real (Mercado Pago) -->
+<div class="modal modal--track" id="pixPaymentModal" role="dialog" aria-modal="true">
+  <div class="modal__body" id="pixPaymentContent"></div>
+</div>
+
+<!-- ============================= MODAL ACOMPANHAR PEDIDO ============================= -->
+<div class="modal modal--track" id="trackModal" role="dialog" aria-modal="true">
+  <div class="modal__body" id="trackModalContent"><!-- gerado via JS --></div>
+</div>
+
+<div class="toast-stack" id="toastStack"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="js/supabase-config.js"></script>
+<script src="js/supabase-client.js"></script>
+<script src="js/data.js"></script>
+<script src="js/main.js"></script>
+<script src="js/site-sync.js"></script>
+</body>
+</html>

@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Painel Administrativo — Brasa Burger Co.</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/admin.css">
+</head>
+<body>
+
+<!-- ============================= LOGIN ============================= -->
+<div class="login-screen" id="loginScreen">
+  <div class="login-card">
+    <div class="brand-mark">
+      <img src="assets/brand/logo-icon.png" alt="Brasa Burger Co.">
+      <span>BRASA <em>ADMIN</em></span>
+    </div>
+    <h1>Painel administrativo</h1>
+    <p class="sub">Entre para gerenciar pedidos, cardápio e configurações.</p>
+
+    <div class="login-tabs">
+      <button class="is-active" id="tabPassword">Senha</button>
+      <button id="tabCode">Código por e-mail</button>
+    </div>
+
+    <div class="login-error" id="loginError">E-mail ou senha incorretos. Tente novamente.</div>
+
+    <form id="loginFormPassword">
+      <div class="field">
+        <label for="loginEmail">E-mail</label>
+        <input type="email" id="loginEmail" placeholder="seu@email.com" autocomplete="username">
+      </div>
+      <div class="field">
+        <label for="loginPass">Senha</label>
+        <input type="password" id="loginPass" placeholder="Digite sua senha" autocomplete="current-password">
+      </div>
+      <button type="submit" class="btn btn-primary" style="width:100%; justify-content:center; margin-top:6px;">Entrar</button>
+    </form>
+
+    <form id="loginFormCode" style="display:none;">
+      <div class="field">
+        <label for="loginEmail2">E-mail</label>
+        <input type="email" id="loginEmail2" placeholder="seu@email.com" autocomplete="username">
+      </div>
+      <div class="field" id="codeFieldWrap" style="display:none;">
+        <label for="loginCode">Código de 6 dígitos</label>
+        <input type="text" id="loginCode" maxlength="6" placeholder="000000">
+      </div>
+      <button type="submit" class="btn btn-primary" style="width:100%; justify-content:center; margin-top:6px;" id="codeSubmitBtn">Enviar código</button>
+    </form>
+
+    <div class="login-hint">🔑 Protótipo demonstrativo — use qualquer senha (mín. 3 caracteres) ou peça o código, ele aparecerá em um aviso na tela.</div>
+  </div>
+</div>
+
+<!-- ============================= SHELL ADMIN ============================= -->
+<div class="admin-shell" id="adminShell">
+
+  <!-- ---------- Sidebar ---------- -->
+  <aside class="sidebar" id="sidebar">
+    <button class="sidebar__mobile-close icon-only-btn" id="closeSidebarBtn" aria-label="Fechar menu">✕</button>
+    <div class="sidebar__brand">
+      <img src="assets/brand/logo-icon.png" alt="">
+      <span class="sidebar__brand-text">BRASA BURGER</span>
+    </div>
+    <div class="sidebar__sub">PAINEL ADMINISTRATIVO</div>
+
+    <nav class="sidebar__nav" id="sidebarNav">
+      <button class="nav-item is-active" data-view="visao-geral"><span class="ic">📊</span><span class="nav-label">Visão geral</span></button>
+      <button class="nav-item" data-view="pedidos"><span class="ic">🧾</span><span class="nav-label">Pedidos</span><span class="nav-badge" id="navOrdersBadge">0</span></button>
+      <button class="nav-item" data-view="produtos"><span class="ic">🍔</span><span class="nav-label">Produtos</span></button>
+      <button class="nav-item" data-view="categorias"><span class="ic">🗂️</span><span class="nav-label">Categorias</span></button>
+      <button class="nav-item" data-view="adicionais"><span class="ic">➕</span><span class="nav-label">Adicionais</span></button>
+      <button class="nav-item" data-view="cupons"><span class="ic">🏷️</span><span class="nav-label">Cupons</span></button>
+      <button class="nav-item" data-view="areas"><span class="ic">📍</span><span class="nav-label">Áreas de entrega</span></button>
+      <button class="nav-item" data-view="banners"><span class="ic">🖼️</span><span class="nav-label">Banners</span></button>
+      <button class="nav-item" data-view="configuracoes"><span class="ic">⚙️</span><span class="nav-label">Configurações</span></button>
+    </nav>
+
+    <div class="sidebar__footer">
+      <div class="store-status-card">
+        <div class="line1"><span class="dot-green"></span> Loja aberta</div>
+        <div class="line2">Terça a domingo, 18h–23h30</div>
+        <a href="index.html" target="_blank">Ver site público →</a>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ---------- Área principal ---------- -->
+  <div class="main-area">
+    <header class="topbar">
+      <button class="tb-icon-btn topbar__menu-btn" id="openSidebarBtn" aria-label="Abrir menu">☰</button>
+      <div class="topbar__titles">
+        <div class="topbar__date" id="topbarDate">SEXTA-FEIRA, 7 DE AGOSTO</div>
+        <h1 class="topbar__title" id="topbarTitle">Visão geral</h1>
+      </div>
+      <div class="topbar__search">
+        <span>🔍</span>
+        <input type="text" id="globalSearch" placeholder="Buscar pedidos, produtos...">
+      </div>
+      <div class="topbar__actions">
+        <button class="tb-icon-btn is-muted" id="soundToggle" aria-label="Alternar som de notificação" title="Som de novos pedidos">🔔</button>
+        <button class="tb-icon-btn" id="notifBtn" aria-label="Notificações">
+          🔔<span class="tb-badge" id="notifBadge">3</span>
+        </button>
+        <div class="profile-chip" id="profileChip">
+          <div class="avatar-initials" id="profileInitials">MS</div>
+          <div class="who"><span class="name" id="profileName">Marina Silva</span><span class="role" id="profileRole">Administradora</span></div>
+        </div>
+        <button class="tb-icon-btn" id="logoutBtn" aria-label="Sair" title="Sair">🚪</button>
+      </div>
+    </header>
+
+    <main class="view-content" id="viewContent">
+      <!-- Conteúdo de cada view é injetado via JS -->
+    </main>
+  </div>
+</div>
+
+<!-- ============================= OVERLAYS ============================= -->
+<div class="backdrop" id="backdrop"></div>
+
+<aside class="drawer" id="orderDrawer" aria-label="Detalhes do pedido">
+  <div id="orderDrawerContent"></div>
+</aside>
+
+<div class="modal" id="adminModal" role="dialog" aria-modal="true">
+  <div id="adminModalContent"></div>
+</div>
+
+<div class="modal" id="confirmModal" role="dialog" aria-modal="true">
+  <div id="confirmModalContent"></div>
+</div>
+
+<div class="toast-stack" id="toastStack"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="js/supabase-config.js"></script>
+<script src="js/supabase-client.js"></script>
+<script src="js/admin-data.js"></script>
+<script src="js/admin.js"></script>
+<script src="js/admin-sync.js"></script>
+<script src="js/admin-orders.js"></script>
+<script src="js/admin-catalog.js"></script>
+<script src="js/admin-marketing.js"></script>
+<script src="js/admin-settings.js"></script>
+<script>window.__brasaAdminInit();</script>
+</body>
+</html>
