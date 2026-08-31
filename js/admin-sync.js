@@ -80,6 +80,7 @@
       area: o.delivery_areas ? o.delivery_areas.name : '',
       address: o.address || '',
       payment: (PAYMENT_LABELS[o.payment_method] || o.payment_method) + (o.payment_status === 'pago' ? ' (pago)' : ''),
+      paymentStatus: o.payment_status,
       items: (o.order_items || []).map(i => ({ qty: i.quantity, name: i.product_name })),
       subtotal: Number(o.subtotal), discount: Number(o.discount), fee: Number(o.delivery_fee), total: Number(o.total),
     };

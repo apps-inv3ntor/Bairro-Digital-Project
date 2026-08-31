@@ -83,6 +83,7 @@
         <div class="cmeta">${o.modality === 'entrega' ? '🛵 ' + o.area : '🏠 Retirada'} · ${o.items.reduce((s, i) => s + i.qty, 0)} itens</div>
         <div class="order-card__bottom">
           <span class="pill ${o.payment.includes('Pix') ? 'pill-blue' : 'pill-gray'}">${o.payment.split(' (')[0]}</span>
+          ${o.paymentStatus ? `<span class="pill ${o.paymentStatus === 'pago' ? 'pill-green' : o.paymentStatus === 'falhou' ? 'pill-red' : 'pill-amber'}" style="margin-left:4px;">${o.paymentStatus === 'pago' ? '✅ Pago' : o.paymentStatus === 'falhou' ? '❌ Falhou' : '⏳ Pendente'}</span>` : ''}
           <span class="ototal">${formatBRL(o.total)}</span>
         </div>
       </div>`;
@@ -112,6 +113,12 @@
         <button class="icon-only-btn" id="closeDrawerBtn">✕</button>
       </div>
       <div class="drawer__body">
+        ${o.paymentStatus ? `
+        <div style="margin:-4px -4px 16px; padding:12px 16px; border-radius:10px; font-weight:700; text-align:center;
+          background:${o.paymentStatus === 'pago' ? 'rgba(46,168,90,.18)' : o.paymentStatus === 'falhou' ? 'rgba(220,60,60,.18)' : 'rgba(240,170,30,.18)'};
+          color:${o.paymentStatus === 'pago' ? '#2ea85a' : o.paymentStatus === 'falhou' ? '#dc3c3c' : '#f0aa1e'};">
+          ${o.paymentStatus === 'pago' ? '✅ Pagamento confirmado' : o.paymentStatus === 'falhou' ? '❌ Pagamento não aprovado' : '⏳ Aguardando confirmação do pagamento'}
+        </div>` : ''}
         <div class="detail-block">
           <h4>Cliente</h4>
           <p style="font-weight:700;">${escapeHtml(o.customer)}</p>
