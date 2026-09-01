@@ -181,6 +181,36 @@
     return { ok: !error, error };
   }
 
+  /* -------- Atualização automática dos pedidos (sem precisar relogar) -------- */
+  let ordersPollTimer = null;
+  async function pollOrdersOnce() {
+    if (!window.SUPABASE_READY) return;
+    const A = window.__brasaAdmin;
+    const { data: rawOrders, error } = await window.sb
+      .from('orders')
+      .select('*, delivery_areas(name), order_items(product_name, quantity)')
+      .order('created_at', { ascending: false });
+    if (error || !rawOrders) return;
+    const fresh = rawOrders.map(orderFromDb);
+    const prevById = new Map((A.orders || []).map(o => [o._dbId, o]));
+    let hasNewOrder = false, hasNewlyPaid = false;
+    fresh.forEach(o => {
+      const prev = prevById.get(o._dbId);
+      if (!prev) hasNewOrder = true;
+      else if (prev.paymentStatus !== 'pago' && o.paymentStatus === 'pago') hasNewlyPaid = true;
+    });
+    A.orders = fresh;
+    A.persist('admin_orders', A.orders);
+    A.updateOrdersBadge();
+    if (A.currentView === 'pedidos' || A.currentView === 'visao-geral') A.goToView(A.currentView);
+    if (hasNewOrder) A.showToast('🔔 Novo pedido recebido!');
+    if (hasNewlyPaid) A.showToast('✅ Um pagamento foi confirmado!');
+  }
+  function startOrdersPolling() {
+    if (ordersPollTimer) return; // já rodando, evita duplicar
+    ordersPollTimer = setInterval(pollOrdersOnce, 15000);
+  }
+
   /* -------- Carga inicial após login real -------- */
   async function syncCatalogFromSupabase() {
     if (!window.SUPABASE_READY) return;
@@ -225,6 +255,7 @@
       }
       A.showToast('Catálogo e configurações carregados do banco de dados real ✅');
       A.goToView(A.currentView || 'visao-geral');
+      startOrdersPolling();
     } catch (e) {
       console.warn('Erro ao sincronizar com o Supabase:', e);
       A.showToast('Erro ao conectar com o banco — mostrando dados salvos localmente.', 'error');
