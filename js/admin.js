@@ -298,6 +298,7 @@
   /* ============================================================
      VIEW: VISÃO GERAL (Dashboard)
      ============================================================ */
+  let revenuePeriod = 'semana';
   VIEW_RENDERERS['visao-geral'] = function renderDashboard() {
     const root = document.getElementById('viewContent');
     const today = orders.filter(o => o.createdAt > Date.now() - 24 * 3600000);
@@ -305,19 +306,38 @@
     const avgTicket = today.length ? revenueToday / today.length : 0;
     const pendingCount = orders.filter(o => o.status !== 'concluido').length;
 
-    const DAY_LABELS_SHORT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-    const dayBounds = i => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - i); return d; };
-    const weekSales = [];
-    for (let i = 6; i >= 0; i--) {
-      const start = dayBounds(i).getTime();
-      const end = start + 24 * 3600000;
-      const dayOrders = orders.filter(o => o.status !== 'cancelado' && o.createdAt >= start && o.createdAt < end);
-      weekSales.push({ label: DAY_LABELS_SHORT[new Date(start).getDay()], value: dayOrders.reduce((s, o) => s + o.total, 0) });
+    const REVENUE_PERIOD_DAYS = { semana: 7, quinzena: 15, mes: 30, trimestre: 90, semestre: 180, ano: 365, total: null };
+    const periodDays = REVENUE_PERIOD_DAYS[revenuePeriod];
+    const periodCutoff = periodDays ? Date.now() - periodDays * 24 * 3600000 : (orders.length ? Math.min(...orders.map(o => o.createdAt)) : Date.now());
+    const periodOrders = orders.filter(o => o.status !== 'cancelado' && o.createdAt >= periodCutoff);
+    const weekTotal = periodOrders.reduce((s, o) => s + o.total, 0);
+
+    let weekSales = [];
+    if (!periodDays || periodDays > 31) {
+      // Período longo: agrupa por mês
+      const byMonth = {};
+      periodOrders.forEach(o => {
+        const d = new Date(o.createdAt);
+        const key = `${d.getFullYear()}-${d.getMonth()}`;
+        if (!byMonth[key]) byMonth[key] = { label: d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', ''), value: 0, sortKey: d.getFullYear() * 12 + d.getMonth() };
+        byMonth[key].value += o.total;
+      });
+      weekSales = Object.values(byMonth).sort((a, b) => a.sortKey - b.sortKey);
+    } else {
+      // Período curto: agrupa por dia
+      const DAY_LABELS_SHORT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+      const dayBounds = i => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - i); return d; };
+      for (let i = periodDays - 1; i >= 0; i--) {
+        const start = dayBounds(i).getTime();
+        const end = start + 24 * 3600000;
+        const dayOrders = periodOrders.filter(o => o.createdAt >= start && o.createdAt < end);
+        weekSales.push({ label: DAY_LABELS_SHORT[new Date(start).getDay()], value: dayOrders.reduce((s, o) => s + o.total, 0) });
+      }
     }
-    const weekTotal = weekSales.reduce((s, d) => s + d.value, 0);
-    const prevStart = dayBounds(13).getTime(), prevEnd = dayBounds(6).getTime();
-    const prevWeekTotal = orders.filter(o => o.status !== 'cancelado' && o.createdAt >= prevStart && o.createdAt < prevEnd).reduce((s, o) => s + o.total, 0);
-    const weekDeltaPct = prevWeekTotal > 0 ? Math.round(((weekTotal - prevWeekTotal) / prevWeekTotal) * 100) : null;
+
+    const prevPeriodStart = periodDays ? periodCutoff - periodDays * 24 * 3600000 : null;
+    const prevWeekTotal = prevPeriodStart ? orders.filter(o => o.status !== 'cancelado' && o.createdAt >= prevPeriodStart && o.createdAt < periodCutoff).reduce((s, o) => s + o.total, 0) : null;
+    const weekDeltaPct = prevWeekTotal ? Math.round(((weekTotal - prevWeekTotal) / prevWeekTotal) * 100) : null;
 
     root.innerHTML = `
       <div class="greeting-row">
@@ -346,8 +366,14 @@
             <div id="recentOrdersList"></div>
           </div>
           <div class="card panel">
-            <div class="panel__head"><h3>Faturamento da semana</h3><span class="week-select">Últimos 7 dias</span></div>
-            <div class="week-total"><span class="val">${formatBRL(weekTotal)}</span><span class="delta">${weekDeltaPct === null ? '' : (weekDeltaPct >= 0 ? '▲ ' + weekDeltaPct : '▼ ' + Math.abs(weekDeltaPct)) + '% vs semana anterior'}</span></div>
+            <div class="panel__head">
+              <h3>Faturamento</h3>
+              <select id="revenuePeriodSelect" style="background:var(--card); border:1px solid var(--border); color:var(--text); border-radius:var(--radius-sm); padding:6px 10px; font-size:0.78rem;">
+                ${Object.entries({ semana: 'Últimos 7 dias', quinzena: 'Última quinzena', mes: 'Último mês', trimestre: 'Último trimestre', semestre: 'Último semestre', ano: 'Último ano', total: 'Tudo' })
+                  .map(([k, label]) => `<option value="${k}" ${k === revenuePeriod ? 'selected' : ''}>${label}</option>`).join('')}
+              </select>
+            </div>
+            <div class="week-total"><span class="val">${formatBRL(weekTotal)}</span><span class="delta">${weekDeltaPct === null ? '' : (weekDeltaPct >= 0 ? '▲ ' + weekDeltaPct : '▼ ' + Math.abs(weekDeltaPct)) + '% vs período anterior'}</span></div>
             <div class="bar-chart" id="weekBarChart"></div>
           </div>
         </div>
@@ -381,13 +407,21 @@
       row.addEventListener('click', () => window.__brasaOpenOrderDrawer(row.dataset.order));
     });
 
-    // Gráfico semanal (dados reais)
+    // Gráfico de faturamento (dados reais, coloridos sempre que houver venda naquele período)
     const maxVal = Math.max(1, ...weekSales.map(d => d.value));
-    document.getElementById('weekBarChart').innerHTML = weekSales.map(d => `
-      <div class="bar-col">
-        <div class="bar ${d.value === maxVal ? 'is-peak' : ''}" style="height:${Math.max(6, (d.value / maxVal) * 100)}%;"></div>
-        <span class="bar-label">${d.label}</span>
-      </div>`).join('');
+    if (weekSales.length) {
+      document.getElementById('weekBarChart').innerHTML = weekSales.map(d => `
+        <div class="bar-col">
+          <div class="bar ${d.value > 0 ? 'is-peak' : ''}" style="height:${d.value > 0 ? Math.max(6, (d.value / maxVal) * 100) : 3}%;"></div>
+          <span class="bar-label">${d.label}</span>
+        </div>`).join('');
+    } else {
+      document.getElementById('weekBarChart').innerHTML = `<div class="empty-state" style="width:100%;"><p>Nenhuma venda nesse período ainda.</p></div>`;
+    }
+    document.getElementById('revenuePeriodSelect').addEventListener('change', (e) => {
+      revenuePeriod = e.target.value;
+      A.goToView('visao-geral');
+    });
 
     // Mais vendidos (agrupado por nome a partir dos pedidos reais dos últimos 30 dias)
     const since30 = Date.now() - 30 * 24 * 3600000;
