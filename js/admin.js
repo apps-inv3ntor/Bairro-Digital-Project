@@ -378,7 +378,7 @@
         <span class="ro-total">${formatBRL(o.total)}</span>
       </div>`).join('') || `<div class="empty-state"><p>Nenhum pedido ainda hoje.</p></div>`;
     document.querySelectorAll('.recent-order-row').forEach(row => {
-      row.addEventListener('click', () => openOrderDrawer(row.dataset.order));
+      row.addEventListener('click', () => window.__brasaOpenOrderDrawer(row.dataset.order));
     });
 
     // Gráfico semanal (dados reais)
