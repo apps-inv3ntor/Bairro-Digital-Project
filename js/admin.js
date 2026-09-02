@@ -305,6 +305,20 @@
     const avgTicket = today.length ? revenueToday / today.length : 0;
     const pendingCount = orders.filter(o => o.status !== 'concluido').length;
 
+    const DAY_LABELS_SHORT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+    const dayBounds = i => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - i); return d; };
+    const weekSales = [];
+    for (let i = 6; i >= 0; i--) {
+      const start = dayBounds(i).getTime();
+      const end = start + 24 * 3600000;
+      const dayOrders = orders.filter(o => o.status !== 'cancelado' && o.createdAt >= start && o.createdAt < end);
+      weekSales.push({ label: DAY_LABELS_SHORT[new Date(start).getDay()], value: dayOrders.reduce((s, o) => s + o.total, 0) });
+    }
+    const weekTotal = weekSales.reduce((s, d) => s + d.value, 0);
+    const prevStart = dayBounds(13).getTime(), prevEnd = dayBounds(6).getTime();
+    const prevWeekTotal = orders.filter(o => o.status !== 'cancelado' && o.createdAt >= prevStart && o.createdAt < prevEnd).reduce((s, o) => s + o.total, 0);
+    const weekDeltaPct = prevWeekTotal > 0 ? Math.round(((weekTotal - prevWeekTotal) / prevWeekTotal) * 100) : null;
+
     root.innerHTML = `
       <div class="greeting-row">
         <div class="greeting">
@@ -333,7 +347,7 @@
           </div>
           <div class="card panel">
             <div class="panel__head"><h3>Faturamento da semana</h3><span class="week-select">Últimos 7 dias</span></div>
-            <div class="week-total"><span class="val">${formatBRL(ADMIN_WEEK_SALES.reduce((s, d) => s + d.value, 0))}</span><span class="delta">▲ 18% vs semana anterior</span></div>
+            <div class="week-total"><span class="val">${formatBRL(weekTotal)}</span><span class="delta">${weekDeltaPct === null ? '' : (weekDeltaPct >= 0 ? '▲ ' + weekDeltaPct : '▼ ' + Math.abs(weekDeltaPct)) + '% vs semana anterior'}</span></div>
             <div class="bar-chart" id="weekBarChart"></div>
           </div>
         </div>
@@ -364,29 +378,36 @@
         <span class="ro-total">${formatBRL(o.total)}</span>
       </div>`).join('') || `<div class="empty-state"><p>Nenhum pedido ainda hoje.</p></div>`;
     document.querySelectorAll('.recent-order-row').forEach(row => {
-      row.addEventListener('click', () => openOrderDrawer(parseInt(row.dataset.order, 10)));
+      row.addEventListener('click', () => openOrderDrawer(row.dataset.order));
     });
 
-    // Gráfico semanal
-    const maxVal = Math.max(...ADMIN_WEEK_SALES.map(d => d.value));
-    document.getElementById('weekBarChart').innerHTML = ADMIN_WEEK_SALES.map(d => `
+    // Gráfico semanal (dados reais)
+    const maxVal = Math.max(1, ...weekSales.map(d => d.value));
+    document.getElementById('weekBarChart').innerHTML = weekSales.map(d => `
       <div class="bar-col">
         <div class="bar ${d.value === maxVal ? 'is-peak' : ''}" style="height:${Math.max(6, (d.value / maxVal) * 100)}%;"></div>
         <span class="bar-label">${d.label}</span>
       </div>`).join('');
 
-    // Mais vendidos
-    document.getElementById('topSellersList').innerHTML = ADMIN_TOP_SELLERS.map((t, i) => {
-      const p = findProduct(t.id);
-      if (!p) return '';
+    // Mais vendidos (agrupado por nome a partir dos pedidos reais dos últimos 30 dias)
+    const since30 = Date.now() - 30 * 24 * 3600000;
+    const salesByName = {};
+    orders.filter(o => o.status !== 'cancelado' && o.createdAt >= since30).forEach(o => {
+      (o.items || []).forEach(it => {
+        if (!salesByName[it.name]) salesByName[it.name] = { name: it.name, qty: 0 };
+        salesByName[it.name].qty += it.qty;
+      });
+    });
+    const topSellersReal = Object.values(salesByName).sort((a, b) => b.qty - a.qty).slice(0, 4);
+    document.getElementById('topSellersList').innerHTML = topSellersReal.length ? topSellersReal.map((t, i) => {
+      const p = products.find(pr => pr.name === t.name);
       return `
         <div class="top-seller-row">
           <span class="rank">${i + 1}</span>
-          <img src="${p.img}" alt="${p.name}">
-          <div class="ts-info"><div class="name">${p.name}</div><div class="meta">${t.sold} vendidos</div></div>
-          <span class="ts-price">${formatBRL(t.revenue)}</span>
+          <img src="${p ? p.img : 'assets/products/brasa-bacon.jpg'}" alt="${escapeHtml(t.name)}">
+          <div class="ts-info"><div class="name">${escapeHtml(t.name)}</div><div class="meta">${t.qty} vendidos</div></div>
         </div>`;
-    }).join('');
+    }).join('') : `<div class="empty-state"><p>Nenhuma venda nos últimos 30 dias ainda.</p></div>`;
   };
 
   function metricCard(icon, value, label, delta, positive) {

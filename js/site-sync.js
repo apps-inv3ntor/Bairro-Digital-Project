@@ -18,7 +18,7 @@
         window.sb.from('products').select('*').eq('active', true),
         window.sb.from('delivery_areas').select('*').eq('active', true),
         window.sb.from('coupons').select('*').eq('active', true),
-        window.sb.from('store_settings').select('*').eq('key', 'store_info'),
+        window.sb.from('store_settings').select('*'),
         window.sb.from('banners').select('*').eq('active', true).order('priority'),
       ]);
       if (catsErr || prodsErr) {
@@ -88,8 +88,16 @@
       }
 
       // Pedido mínimo geral, se configurado
-      if (!settingsErr && settingsRows && settingsRows.length && settingsRows[0].value && settingsRows[0].value.minOrder) {
-        MIN_ORDER = Number(settingsRows[0].value.minOrder);
+      // Pedido mínimo e formas de pagamento habilitadas, se configurados
+      if (!settingsErr && settingsRows && settingsRows.length) {
+        const storeInfoRow = settingsRows.find(r => r.key === 'store_info');
+        if (storeInfoRow && storeInfoRow.value && storeInfoRow.value.minOrder) {
+          MIN_ORDER = Number(storeInfoRow.value.minOrder);
+        }
+        const paymentsRow = settingsRows.find(r => r.key === 'payments_enabled');
+        if (paymentsRow && paymentsRow.value) {
+          window.PAYMENTS_ENABLED = paymentsRow.value;
+        }
       }
 
       if (typeof window.__brasaRefreshMenu === 'function') window.__brasaRefreshMenu();

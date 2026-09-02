@@ -475,6 +475,9 @@
   function renderQuickAccess() {
     const area = document.getElementById('quickAccessArea');
     if (!area) return;
+    area.innerHTML = ''; // removido: era decorativo, não autenticava de verdade — confundia clientes
+    return;
+    /* eslint-disable no-unreachable */
     if (authUser) {
       area.innerHTML = `
         <div class="quick-access-signed-in">
@@ -637,12 +640,14 @@
   }
 
   function stepPagamentoFinal() {
-    const options = [
+    const allOptions = [
       { id: 'pix', label: 'Pix na entrega/retirada' },
       { id: 'debito', label: 'Cartão de débito' },
       { id: 'credito', label: 'Cartão de crédito' },
       { id: 'dinheiro', label: 'Dinheiro' },
     ];
+    const enabled = window.PAYMENTS_ENABLED || { pix: true, debito: true, credito: true, dinheiro: true };
+    const options = allOptions.filter(o => enabled[o.id] !== false);
     const subtotal = cartSubtotal();
     const discount = discountAmount(subtotal);
     const fee = currentDeliveryFee();

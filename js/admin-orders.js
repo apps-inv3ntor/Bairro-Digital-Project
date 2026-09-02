@@ -9,6 +9,9 @@
   const KANBAN_COLS = ['novo', 'confirmado', 'preparo', 'entrega'];
   let activeFilter = 'todos';
   let searchTerm = '';
+  let historyPeriod = 'semana';
+  const PERIOD_DAYS = { dia: 1, semana: 7, quinzena: 15, mes: 30, trimestre: 90, semestre: 180, ano: 365, total: null };
+  const PERIOD_LABELS = { dia: 'Ontem', semana: 'Última semana', quinzena: 'Última quinzena', mes: 'Último mês', trimestre: 'Último trimestre', semestre: 'Último semestre', ano: 'Último ano', total: 'Tudo' };
 
   A.VIEW_RENDERERS['pedidos'] = function renderOrders() {
     const root = document.getElementById('viewContent');
@@ -24,11 +27,21 @@
           <button class="filter-chip" data-mod="retirada">Retirada</button>
         </div>
       </div>
-      <div class="kanban-wrap" id="kanbanWrap"></div>`;
+      <h4 style="margin:4px 0 8px;">Hoje</h4>
+      <div class="kanban-wrap" id="kanbanWrap"></div>
+
+      <div style="display:flex; align-items:center; justify-content:space-between; margin:28px 0 8px;">
+        <h4 style="margin:0;">Dias anteriores</h4>
+        <select id="historyPeriodSelect" style="max-width:200px; background:var(--card); border:1px solid var(--border); color:var(--text); border-radius:var(--radius-sm); padding:9px 12px; font-size:0.83rem;">
+          ${Object.keys(PERIOD_LABELS).map(k => `<option value="${k}" ${k === historyPeriod ? 'selected' : ''}>${PERIOD_LABELS[k]}</option>`).join('')}
+        </select>
+      </div>
+      <div id="historyAccordion"></div>`;
 
     document.getElementById('orderSearch').addEventListener('input', (e) => {
       searchTerm = e.target.value.trim().toLowerCase();
       renderKanban();
+      renderHistory();
     });
     document.getElementById('orderModalityFilter').addEventListener('click', (e) => {
       const chip = e.target.closest('.filter-chip');
@@ -37,10 +50,79 @@
       chip.classList.add('is-active');
       activeFilter = chip.dataset.mod;
       renderKanban();
+      renderHistory();
+    });
+    document.getElementById('historyPeriodSelect').addEventListener('change', (e) => {
+      historyPeriod = e.target.value;
+      renderHistory();
     });
 
     renderKanban();
+    renderHistory();
   };
+
+  function isToday(ts) {
+    const d = new Date(ts), now = new Date();
+    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+  }
+
+  function renderHistory() {
+    const el = document.getElementById('historyAccordion');
+    if (!el) return;
+    const days = PERIOD_DAYS[historyPeriod];
+    const cutoff = days ? Date.now() - days * 24 * 3600000 : 0;
+    const past = A.orders.filter(o => !isToday(o.createdAt) && o.createdAt >= cutoff && matchesFilters(o));
+
+    const byDay = {};
+    past.forEach(o => {
+      const key = new Date(o.createdAt).toLocaleDateString('pt-BR');
+      if (!byDay[key]) byDay[key] = [];
+      byDay[key].push(o);
+    });
+    const dayKeys = Object.keys(byDay).sort((a, b) => {
+      const [da, ma, ya] = a.split('/'); const [db, mb, yb] = b.split('/');
+      return new Date(yb, mb - 1, db) - new Date(ya, ma - 1, da);
+    });
+
+    if (!dayKeys.length) {
+      el.innerHTML = `<div class="empty-state" style="padding:24px;"><p>Nenhum pedido nesse período.</p></div>`;
+      return;
+    }
+
+    el.innerHTML = dayKeys.map(dayKey => {
+      const dayOrders = byDay[dayKey].sort((a, b) => b.createdAt - a.createdAt);
+      const dayTotal = dayOrders.reduce((s, o) => s + o.total, 0);
+      return `
+        <div class="card" style="margin-bottom:10px; overflow:hidden;">
+          <button class="history-day-head" data-day="${dayKey}" style="width:100%; display:flex; justify-content:space-between; align-items:center; padding:14px 18px; background:none; border:none; cursor:pointer; color:inherit; font:inherit; text-align:left;">
+            <span><strong>${dayKey}</strong> <span class="muted">— ${dayOrders.length} pedido${dayOrders.length > 1 ? 's' : ''}</span></span>
+            <span style="display:flex; align-items:center; gap:12px;"><strong>${formatBRL(dayTotal)}</strong> <span class="accordion-arrow">▾</span></span>
+          </button>
+          <div class="history-day-body" data-day-body="${dayKey}" style="display:none; padding:0 18px 14px;">
+            ${dayOrders.map(o => `
+              <div class="card order-card" data-order="${o.id}" style="cursor:pointer; margin-bottom:8px;">
+                <div class="order-card__top"><strong>#${o.id}</strong> <span class="muted">${new Date(o.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span></div>
+                <div class="muted" style="font-size:0.85rem;">${escapeHtml(o.customer)} · ${o.modality === 'entrega' ? 'Entrega' : 'Retirada'}</div>
+                <div class="order-card__bottom">
+                  <span class="pill ${o.payment.includes('Pix') ? 'pill-blue' : 'pill-gray'}">${o.payment.split(' (')[0]}</span>
+                  ${o.paymentStatus ? `<span class="pill ${o.paymentStatus === 'pago' ? 'pill-green' : o.paymentStatus === 'falhou' ? 'pill-red' : 'pill-amber'}" style="margin-left:4px;">${o.paymentStatus === 'pago' ? '✅ Pago' : o.paymentStatus === 'falhou' ? '❌ Falhou' : '⏳ Pendente'}</span>` : ''}
+                  <span class="ototal">${formatBRL(o.total)}</span>
+                </div>
+              </div>`).join('')}
+          </div>
+        </div>`;
+    }).join('');
+
+    el.querySelectorAll('.history-day-head').forEach(btn => btn.addEventListener('click', () => {
+      const body = el.querySelector(`[data-day-body="${btn.dataset.day}"]`);
+      const isOpen = body.style.display !== 'none';
+      body.style.display = isOpen ? 'none' : 'block';
+      btn.querySelector('.accordion-arrow').textContent = isOpen ? '▾' : '▴';
+    }));
+    el.querySelectorAll('.history-day-body .order-card').forEach(card => {
+      card.addEventListener('click', () => openOrderDrawer(card.dataset.order));
+    });
+  }
 
   function matchesFilters(o) {
     if (activeFilter !== 'todos' && o.modality !== activeFilter) return false;
@@ -52,7 +134,7 @@
     const wrap = document.getElementById('kanbanWrap');
     if (!wrap) return;
     wrap.innerHTML = KANBAN_COLS.map(status => {
-      const list = A.orders.filter(o => o.status === status && matchesFilters(o)).sort((a, b) => b.createdAt - a.createdAt);
+      const list = A.orders.filter(o => o.status === status && isToday(o.createdAt) && matchesFilters(o)).sort((a, b) => b.createdAt - a.createdAt);
       return `
         <div class="kanban-col" data-col="${status}">
           <div class="kanban-col__head">

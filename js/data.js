@@ -199,4 +199,5 @@ const COUPONS = {
 };
 
 let MIN_ORDER = 20;
+window.PAYMENTS_ENABLED = { pix: true, debito: true, credito: true, dinheiro: true };
 const STORE_WHATSAPP = '5511999992026';
