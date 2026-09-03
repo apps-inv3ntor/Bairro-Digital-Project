@@ -13,7 +13,7 @@
     root.innerHTML = `
       <div class="tabs-row" id="settingsTabs">
         <button class="tab-btn is-active" data-tab="loja">Dados da loja</button>
-        <button class="tab-btn" data-tab="entrega">Área de entrega</button>
+        <button class="tab-btn" data-tab="entrega">Raio de cobertura</button>
         <button class="tab-btn" data-tab="horarios">Horário de funcionamento</button>
         <button class="tab-btn" data-tab="pagamentos">Pagamentos</button>
         <button class="tab-btn" data-tab="usuarios">Usuários e permissões</button>
@@ -24,7 +24,12 @@
         <div class="card" style="padding:22px 24px; max-width:560px;">
           <div class="field"><label>Nome da loja</label><input type="text" id="sStoreName" value="${A.settings.storeName}"></div>
           <div class="field"><label>Telefone / WhatsApp</label><input type="text" id="sPhone" value="${A.settings.phone}"></div>
-          <div class="field"><label>Endereço</label><input type="text" id="sAddress" value="${A.settings.address}"></div>
+          <div class="field"><label>Rua e número</label><input type="text" id="sAddressStreet" value="${A.settings.addressStreet || ''}" placeholder="Ex: Rua do Balneário, 369"></div>
+          <div class="field-row">
+            <div class="field"><label>Bairro</label><input type="text" id="sAddressNeighborhood" value="${A.settings.addressNeighborhood || ''}" placeholder="Ex: Amaralina"></div>
+            <div class="field"><label>CEP</label><input type="text" id="sAddressCep" value="${A.settings.addressCep || ''}" placeholder="00000-000"></div>
+          </div>
+          <div class="field"><label>Cidade</label><input type="text" id="sAddressCity" value="${A.settings.addressCity || ''}" placeholder="Ex: Salvador"></div>
           <div class="field"><label>Instagram</label><input type="text" id="sInstagram" value="${A.settings.instagram}"></div>
           <div class="field"><label>Pedido mínimo geral (R$)</label><input type="number" min="0" step="0.01" id="sMinOrder" value="${A.settings.minOrder}"></div>
           <button class="btn btn-primary" id="saveStoreBtn">Salvar alterações</button>
@@ -33,7 +38,7 @@
 
       <div class="tab-panel" id="tabEntrega">
         <div class="card" style="padding:22px 24px; max-width:560px;">
-          <p class="muted" style="margin:0 0 14px;">Usamos o endereço já cadastrado em "Dados da loja" como o ponto central. Defina o raio máximo de entrega — qualquer cliente fora desse raio verá a mensagem de que a região ainda não é atendida.</p>
+          <p class="muted" style="margin:0 0 14px;">Usamos o endereço já cadastrado em "Dados da loja" como o ponto central. Defina o raio máximo de entrega — qualquer cliente fora desse raio verá a mensagem de que a região ainda não é atendida. <strong>Isso não define a taxa de entrega</strong> — quem faz isso continua sendo a lista de bairros em "Marketing → Áreas de entrega".</p>
           <div class="field"><label>Raio máximo de entrega (km)</label><input type="number" min="1" step="0.5" id="sDeliveryRadius" value="${A.settings.deliveryGeo && A.settings.deliveryGeo.radiusKm || 5}"></div>
           <button class="btn btn-secondary" id="locateStoreBtn" type="button" style="margin-bottom:14px;">📍 Localizar endereço da loja</button>
           <div id="geoResultBox" class="muted" style="font-size:0.85rem; margin-bottom:14px;">
@@ -174,13 +179,21 @@
     document.getElementById('saveStoreBtn').addEventListener('click', async () => {
       A.settings.storeName = document.getElementById('sStoreName').value.trim();
       A.settings.phone = document.getElementById('sPhone').value.trim();
-      A.settings.address = document.getElementById('sAddress').value.trim();
+      A.settings.addressStreet = document.getElementById('sAddressStreet').value.trim();
+      A.settings.addressNeighborhood = document.getElementById('sAddressNeighborhood').value.trim();
+      A.settings.addressCep = document.getElementById('sAddressCep').value.trim();
+      A.settings.addressCity = document.getElementById('sAddressCity').value.trim();
+      A.settings.address = [A.settings.addressStreet, A.settings.addressNeighborhood, A.settings.addressCity, A.settings.addressCep].filter(Boolean).join(', ');
       A.settings.instagram = document.getElementById('sInstagram').value.trim();
       A.settings.minOrder = parseFloat(document.getElementById('sMinOrder').value) || 0;
       persist('admin_settings', A.settings);
       const sync = window.__brasaCatalogSync;
       if (sync) {
-        const res = await sync.saveSettingsKey('store_info', { storeName: A.settings.storeName, phone: A.settings.phone, address: A.settings.address, instagram: A.settings.instagram, minOrder: A.settings.minOrder });
+        const res = await sync.saveSettingsKey('store_info', {
+          storeName: A.settings.storeName, phone: A.settings.phone, address: A.settings.address,
+          addressStreet: A.settings.addressStreet, addressNeighborhood: A.settings.addressNeighborhood, addressCep: A.settings.addressCep, addressCity: A.settings.addressCity,
+          instagram: A.settings.instagram, minOrder: A.settings.minOrder,
+        });
         if (!res.ok) { showToast('Salvo localmente, mas falhou ao gravar no banco: ' + (res.error && res.error.message || ''), 'error'); return; }
       }
       showToast('Dados da loja atualizados');
@@ -189,15 +202,22 @@
     let pendingGeo = A.settings.deliveryGeo || null;
     const locateBtn = document.getElementById('locateStoreBtn');
     if (locateBtn) locateBtn.addEventListener('click', async () => {
-      const address = A.settings.address;
-      if (!address) { showToast('Cadastre o endereço da loja na aba "Dados da loja" primeiro.', 'error'); return; }
+      const { addressStreet, addressNeighborhood, addressCity, addressCep } = A.settings;
+      if (!addressStreet || !addressNeighborhood) { showToast('Cadastre rua e bairro da loja na aba "Dados da loja" primeiro.', 'error'); return; }
       locateBtn.disabled = true;
       locateBtn.textContent = 'Localizando...';
-      try {
-        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address + ', Brasil')}&format=json&limit=1`;
+      const tryGeocode = async (parts) => {
+        const q = parts.filter(Boolean).join(', ') + ', Brasil';
+        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1`;
         const res = await fetch(url, { headers: { 'Accept-Language': 'pt-BR' } });
-        const results = await res.json();
-        if (!results.length) { showToast('Não encontramos esse endereço — confira e tente de novo.', 'error'); return; }
+        return res.json();
+      };
+      try {
+        // Primeira tentativa: endereço completo com CEP. Se não achar, tenta de novo sem o CEP
+        // (às vezes o Nominatim não reconhece o CEP junto com o resto do endereço).
+        let results = await tryGeocode([addressStreet, addressNeighborhood, addressCity, addressCep]);
+        if (!results.length) results = await tryGeocode([addressStreet, addressNeighborhood, addressCity]);
+        if (!results.length) { showToast('Não encontramos esse endereço — confira rua e bairro e tente de novo.', 'error'); return; }
         pendingGeo = { lat: parseFloat(results[0].lat), lng: parseFloat(results[0].lon), radiusKm: pendingGeo?.radiusKm || 5 };
         document.getElementById('geoResultBox').textContent = `Encontrado: ${pendingGeo.lat.toFixed(5)}, ${pendingGeo.lng.toFixed(5)} — clique em "Salvar" pra confirmar.`;
         showToast('Endereço localizado!');
