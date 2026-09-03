@@ -10,6 +10,8 @@
 
   if (!window.SUPABASE_READY) return; // continua em modo demonstração
 
+  function formatBRL(v) { return (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
+
   async function loadCatalogFromSupabase() {
     try {
       const [{ data: cats, error: catsErr }, { data: prods, error: prodsErr }, { data: areas, error: areasErr },
@@ -73,9 +75,20 @@
 
       // Áreas de entrega reais
       if (!areasErr && areas && areas.length) {
-        const mappedAreas = areas.map(a => ({ id: a.id, name: a.name, fee: Number(a.fee), etaExtra: a.eta_min_minutes || 0 }));
+        const mappedAreas = areas.map(a => ({ id: a.id, name: a.name, fee: Number(a.fee), etaExtra: a.eta_min_minutes || 0, etaMax: a.eta_max_minutes || 0 }));
         DELIVERY_AREAS.length = 0;
         mappedAreas.forEach(a => DELIVERY_AREAS.push(a));
+
+        const listEl = document.getElementById('deliveryAreasList');
+        if (listEl) {
+          listEl.innerHTML = mappedAreas.map(a => `
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:14px 18px; background:var(--bg-card,#1c1712); border-radius:12px;">
+              <div><strong>${a.name}</strong>${a.etaExtra ? `<div class="muted" style="font-size:0.82rem;">${a.etaExtra}${a.etaMax ? '–' + a.etaMax : ''} min</div>` : ''}</div>
+              <strong style="color:var(--primary,#f4790a);">${formatBRL(a.fee)}</strong>
+            </div>`).join('');
+        }
+        const footerEl = document.getElementById('footerAreasList');
+        if (footerEl) footerEl.textContent = mappedAreas.map(a => `${a.name} ${formatBRL(a.fee)}`).join(' · ') + '.';
       }
 
       // Cupons reais (substitui os de exemplo)

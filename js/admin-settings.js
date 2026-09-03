@@ -13,6 +13,7 @@
     root.innerHTML = `
       <div class="tabs-row" id="settingsTabs">
         <button class="tab-btn is-active" data-tab="loja">Dados da loja</button>
+        <button class="tab-btn" data-tab="entrega">Área de entrega</button>
         <button class="tab-btn" data-tab="horarios">Horário de funcionamento</button>
         <button class="tab-btn" data-tab="pagamentos">Pagamentos</button>
         <button class="tab-btn" data-tab="usuarios">Usuários e permissões</button>
@@ -27,6 +28,18 @@
           <div class="field"><label>Instagram</label><input type="text" id="sInstagram" value="${A.settings.instagram}"></div>
           <div class="field"><label>Pedido mínimo geral (R$)</label><input type="number" min="0" step="0.01" id="sMinOrder" value="${A.settings.minOrder}"></div>
           <button class="btn btn-primary" id="saveStoreBtn">Salvar alterações</button>
+        </div>
+      </div>
+
+      <div class="tab-panel" id="tabEntrega">
+        <div class="card" style="padding:22px 24px; max-width:560px;">
+          <p class="muted" style="margin:0 0 14px;">Usamos o endereço já cadastrado em "Dados da loja" como o ponto central. Defina o raio máximo de entrega — qualquer cliente fora desse raio verá a mensagem de que a região ainda não é atendida.</p>
+          <div class="field"><label>Raio máximo de entrega (km)</label><input type="number" min="1" step="0.5" id="sDeliveryRadius" value="${A.settings.deliveryGeo && A.settings.deliveryGeo.radiusKm || 5}"></div>
+          <button class="btn btn-secondary" id="locateStoreBtn" type="button" style="margin-bottom:14px;">📍 Localizar endereço da loja</button>
+          <div id="geoResultBox" class="muted" style="font-size:0.85rem; margin-bottom:14px;">
+            ${A.settings.deliveryGeo && A.settings.deliveryGeo.lat ? `Localização salva: ${A.settings.deliveryGeo.lat.toFixed(5)}, ${A.settings.deliveryGeo.lng.toFixed(5)}` : 'Ainda não localizado — clique no botão acima.'}
+          </div>
+          <button class="btn btn-primary" id="saveDeliveryGeoBtn">Salvar área de entrega</button>
         </div>
       </div>
 
@@ -154,7 +167,7 @@
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('is-active'));
       document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('is-active'));
       btn.classList.add('is-active');
-      const map = { loja: 'tabLoja', horarios: 'tabHorarios', pagamentos: 'tabPagamentos', usuarios: 'tabUsuarios', notificacoes: 'tabNotificacoes' };
+      const map = { loja: 'tabLoja', entrega: 'tabEntrega', horarios: 'tabHorarios', pagamentos: 'tabPagamentos', usuarios: 'tabUsuarios', notificacoes: 'tabNotificacoes' };
       document.getElementById(map[btn.dataset.tab]).classList.add('is-active');
     });
 
@@ -171,6 +184,44 @@
         if (!res.ok) { showToast('Salvo localmente, mas falhou ao gravar no banco: ' + (res.error && res.error.message || ''), 'error'); return; }
       }
       showToast('Dados da loja atualizados');
+    });
+
+    let pendingGeo = A.settings.deliveryGeo || null;
+    const locateBtn = document.getElementById('locateStoreBtn');
+    if (locateBtn) locateBtn.addEventListener('click', async () => {
+      const address = A.settings.address;
+      if (!address) { showToast('Cadastre o endereço da loja na aba "Dados da loja" primeiro.', 'error'); return; }
+      locateBtn.disabled = true;
+      locateBtn.textContent = 'Localizando...';
+      try {
+        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address + ', Brasil')}&format=json&limit=1`;
+        const res = await fetch(url, { headers: { 'Accept-Language': 'pt-BR' } });
+        const results = await res.json();
+        if (!results.length) { showToast('Não encontramos esse endereço — confira e tente de novo.', 'error'); return; }
+        pendingGeo = { lat: parseFloat(results[0].lat), lng: parseFloat(results[0].lon), radiusKm: pendingGeo?.radiusKm || 5 };
+        document.getElementById('geoResultBox').textContent = `Encontrado: ${pendingGeo.lat.toFixed(5)}, ${pendingGeo.lng.toFixed(5)} — clique em "Salvar" pra confirmar.`;
+        showToast('Endereço localizado!');
+      } catch (e) {
+        showToast('Erro ao localizar endereço. Tente novamente.', 'error');
+      } finally {
+        locateBtn.disabled = false;
+        locateBtn.textContent = '📍 Localizar endereço da loja';
+      }
+    });
+
+    const saveGeoBtn = document.getElementById('saveDeliveryGeoBtn');
+    if (saveGeoBtn) saveGeoBtn.addEventListener('click', async () => {
+      const radiusKm = parseFloat(document.getElementById('sDeliveryRadius').value) || 5;
+      if (!pendingGeo || !pendingGeo.lat) { showToast('Clique em "Localizar endereço da loja" antes de salvar.', 'error'); return; }
+      pendingGeo.radiusKm = radiusKm;
+      A.settings.deliveryGeo = pendingGeo;
+      persist('admin_settings', A.settings);
+      const sync = window.__brasaCatalogSync;
+      if (sync) {
+        const res = await sync.saveSettingsKey('delivery_geo', pendingGeo);
+        if (!res.ok) { showToast('Salvo localmente, mas falhou ao gravar no banco: ' + (res.error && res.error.message || ''), 'error'); return; }
+      }
+      showToast('Área de entrega salva!');
     });
 
     document.querySelectorAll('[data-day-toggle]').forEach(t => t.addEventListener('click', function () {

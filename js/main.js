@@ -12,7 +12,7 @@
   let currentSelections = {};
   let currentQty = 1;
   let checkoutStep = 1;
-  let checkoutData = loadJSON('brasa_checkout_draft', { nome: '', telefone: '', email: '', modo: 'entrega', area: 'centro', endereco: '', referencia: '', pagamento: 'pix', troco: '' });
+  let checkoutData = loadJSON('brasa_checkout_draft', { nome: '', telefone: '', email: '', modo: 'entrega', area: 'centro', bairro: '', cep: '', endereco: '', referencia: '', pagamento: 'pix', troco: '', areaValidated: false, deliveryFeeOverride: null });
   let lastOrder = loadJSON('brasa_last_order', null);
   let authUser = loadJSON('brasa_auth', null); // {name, email} ou null
   let quickAccessTab = 'entrar';
@@ -65,6 +65,7 @@
 
   function currentDeliveryFee() {
     if (checkoutData.modo === 'retirada') return 0;
+    if (checkoutData.deliveryFeeOverride !== null && checkoutData.deliveryFeeOverride !== undefined) return checkoutData.deliveryFeeOverride;
     const area = DELIVERY_AREAS.find(a => a.id === checkoutData.area);
     return area ? area.fee : 0;
   }
@@ -618,25 +619,72 @@
       </div>
       ${isEntrega ? `
         <div class="field">
-          <label for="inpArea">Bairro</label>
-          <select id="inpArea">
-            ${DELIVERY_AREAS.map(a => `<option value="${a.id}" ${checkoutData.area === a.id ? 'selected' : ''}>${a.name} — ${formatBRL(a.fee)}</option>`).join('')}
-          </select>
-        </div>
-        <div class="field">
-          <label for="inpEndereco">Endereço completo</label>
+          <label for="inpEndereco">Endereço completo (rua, número, complemento)</label>
           <input type="text" id="inpEndereco" value="${escapeHtmlLite(checkoutData.endereco)}" placeholder="Rua, número, complemento">
           <div class="field-error-msg" id="errEndereco">Digite o endereço de entrega.</div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label for="inpBairro">Bairro</label><input type="text" id="inpBairro" value="${escapeHtmlLite(checkoutData.bairro)}" placeholder="Ex: Centro"></div>
+          <div class="field"><label for="inpCep">CEP</label><input type="text" id="inpCep" value="${escapeHtmlLite(checkoutData.cep)}" placeholder="00000-000"></div>
         </div>
         <div class="field">
           <label for="inpReferencia">Ponto de referência (opcional)</label>
           <input type="text" id="inpReferencia" value="${escapeHtmlLite(checkoutData.referencia)}" placeholder="Ex: perto da praça">
+        </div>
+        <button class="btn btn-secondary" id="checkAreaBtn" type="button" style="width:100%; margin-bottom:10px;">📍 Verificar disponibilidade</button>
+        <div id="areaCheckResult" style="margin-bottom:14px; font-size:0.88rem;">
+          ${checkoutData.areaValidated ? `<div class="checkout-locked" style="background:rgba(63,174,107,0.14); color:var(--green,#3fae6b); border-color:transparent;">✅ Atendemos sua localidade!</div>` : ''}
         </div>` : `
         <div class="field"><p style="color:var(--text-secondary); font-size:0.88rem;">Retirada em Rua das Brasas, 147 — Centro. Pronto em até 30 minutos.</p></div>`}
       <div class="checkout-nav">
         <button class="btn btn-secondary" id="prevStepBtn">Voltar</button>
-        <button class="btn btn-primary" id="nextStepBtn">Continuar</button>
+        <button class="btn btn-primary" id="nextStepBtn" ${isEntrega && !checkoutData.areaValidated ? 'disabled' : ''}>Continuar</button>
       </div>`;
+  }
+
+  async function checkDeliveryAvailability() {
+    const endereco = document.getElementById('inpEndereco').value.trim();
+    const bairro = document.getElementById('inpBairro').value.trim();
+    const cep = document.getElementById('inpCep').value.trim();
+    const resultBox = document.getElementById('areaCheckResult');
+    const checkBtn = document.getElementById('checkAreaBtn');
+    if (!endereco || !bairro) {
+      resultBox.innerHTML = `<div class="checkout-locked">Preencha o endereço e o bairro antes de verificar.</div>`;
+      return;
+    }
+    checkoutData.endereco = endereco; checkoutData.bairro = bairro; checkoutData.cep = cep;
+    checkBtn.disabled = true;
+    checkBtn.textContent = 'Verificando...';
+    resultBox.innerHTML = `<div class="muted">Verificando disponibilidade...</div>`;
+    try {
+      if (!window.SUPABASE_READY) throw new Error('offline');
+      const { data, error } = await window.sb.functions.invoke('validate-delivery-address', {
+        body: { street: endereco, neighborhood: bairro, cep },
+      });
+      if (error || !data || data.error) {
+        resultBox.innerHTML = `<div class="checkout-locked">Não foi possível verificar agora. Tente novamente em instantes.</div>`;
+        checkoutData.areaValidated = false;
+        return;
+      }
+      if (data.atendido) {
+        checkoutData.areaValidated = true;
+        if (data.area) { checkoutData.area = data.area.id; checkoutData.deliveryFeeOverride = null; }
+        else { checkoutData.area = null; checkoutData.deliveryFeeOverride = 0; }
+        resultBox.innerHTML = `<div class="checkout-locked" style="background:rgba(63,174,107,0.14); color:var(--green,#3fae6b); border-color:transparent;">✅ ${data.mensagem}</div>`;
+      } else {
+        checkoutData.areaValidated = false;
+        resultBox.innerHTML = `<div class="checkout-locked" style="background:rgba(220,60,60,0.14); color:#e15b5b; border-color:transparent;">${data.mensagem}</div>`;
+      }
+    } catch (e) {
+      checkoutData.areaValidated = false;
+      resultBox.innerHTML = `<div class="checkout-locked">Não foi possível verificar agora. Tente novamente em instantes.</div>`;
+    } finally {
+      checkBtn.disabled = false;
+      checkBtn.textContent = '📍 Verificar disponibilidade';
+      persistCheckoutDraft();
+      const nextBtn = document.getElementById('nextStepBtn');
+      if (nextBtn) nextBtn.disabled = !checkoutData.areaValidated;
+    }
   }
 
   function stepPagamentoFinal() {
@@ -698,9 +746,9 @@
         const endereco = document.getElementById('inpEndereco').value.trim();
         toggleFieldError('inpEndereco', 'errEndereco', !endereco);
         if (!endereco) return;
+        if (!checkoutData.areaValidated) { showToast('Verifique a disponibilidade de entrega antes de continuar.', 'error'); return; }
         checkoutData.endereco = endereco;
         checkoutData.referencia = document.getElementById('inpReferencia').value.trim();
-        checkoutData.area = document.getElementById('inpArea').value;
       }
       persistCheckoutDraft();
       checkoutStep++;
@@ -712,13 +760,27 @@
     document.querySelectorAll('[data-mode]').forEach(btn => {
       btn.addEventListener('click', () => {
         checkoutData.modo = btn.dataset.mode;
+        if (btn.dataset.mode === 'retirada') checkoutData.areaValidated = false;
         persistCheckoutDraft();
         renderInlineCheckout();
       });
     });
 
-    const areaSelect = document.getElementById('inpArea');
-    if (areaSelect) areaSelect.addEventListener('change', () => { checkoutData.area = areaSelect.value; persistCheckoutDraft(); renderInlineCheckout(); });
+    const checkAreaBtn = document.getElementById('checkAreaBtn');
+    if (checkAreaBtn) checkAreaBtn.addEventListener('click', checkDeliveryAvailability);
+
+    ['inpEndereco', 'inpBairro', 'inpCep'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('input', () => {
+        if (checkoutData.areaValidated) {
+          checkoutData.areaValidated = false;
+          const nextBtn = document.getElementById('nextStepBtn');
+          if (nextBtn) nextBtn.disabled = true;
+          const resultBox = document.getElementById('areaCheckResult');
+          if (resultBox) resultBox.innerHTML = `<div class="muted">Endereço alterado — verifique a disponibilidade de novo.</div>`;
+        }
+      });
+    });
 
     document.querySelectorAll('[data-pay]').forEach(label => {
       label.addEventListener('click', () => {

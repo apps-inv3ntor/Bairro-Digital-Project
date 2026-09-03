@@ -250,6 +250,7 @@
           else if (row.key === 'payments_enabled') Object.assign(A.settings.payments, row.value);
           else if (row.key === 'notifications') Object.assign(A.settings, row.value);
           else if (row.key === 'pix_config') Object.assign(A.settings, row.value);
+          else if (row.key === 'delivery_geo') A.settings.deliveryGeo = row.value;
         });
         A.persist('admin_settings', A.settings);
       }
