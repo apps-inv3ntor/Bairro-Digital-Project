@@ -141,6 +141,7 @@
       showToast(isNew ? 'Insumo criado' : 'Insumo atualizado');
     });
     openBackdrop();
+    document.getElementById('adminModal').classList.add('is-open');
   }
 
   async function handleCsvImport(e) {
