@@ -86,11 +86,14 @@
     }));
   }
 
-  function openProductModal(productId) {
+  async function openProductModal(productId) {
     A.editingProductId = productId;
     const p = productId ? A.findProduct(productId) : null;
     const extras = p && p.extras ? JSON.parse(JSON.stringify(p.extras)) : [];
     const removeOpts = p && p.removeOptions ? [...p.removeOptions] : [];
+    const sync = window.__brasaCatalogSync;
+    const fichaExistente = (p && sync) ? await sync.getFichaTecnica(p.id) : [];
+    const fichaItems = fichaExistente.map(f => ({ insumoId: f.insumo_id, quantidade: f.quantidade_gasta }));
     const el = document.getElementById('adminModalContent');
     el.innerHTML = `
       <div class="modal__head"><h2>${p ? 'Editar produto' : 'Novo produto'}</h2><button class="icon-only-btn" id="closeProductModal">✕</button></div>
@@ -127,6 +130,13 @@
           <button class="btn-ghost" id="addRemoveBtn" type="button">+ Adicionar opção</button>
         </div>
 
+        <div style="margin-top:18px;">
+          <label style="display:block; font-size:0.78rem; color:var(--text-2); margin-bottom:8px;">Ficha técnica (insumos gastos por unidade vendida)</label>
+          <div id="fichaRows"></div>
+          <button class="btn-ghost" id="addFichaBtn" type="button">+ Ligar insumo</button>
+          ${!(A.insumos || []).length ? '<p class="muted" style="font-size:0.78rem; margin-top:6px;">Nenhum insumo cadastrado ainda — cadastre em "Estoque" primeiro.</p>' : ''}
+        </div>
+
         <div class="field-inline" style="margin-top:12px;"><span class="fi-label">Produto ativo no cardápio</span><button class="toggle ${!p || p.active ? 'is-on' : ''}" id="toggleActive" type="button"></button></div>
         <div class="field-inline"><span class="fi-label">Destacar como "Mais pedido"</span><button class="toggle ${p && p.featured ? 'is-on' : ''}" id="toggleFeatured" type="button"></button></div>
         <div class="field-inline"><span class="fi-label">Marcar como esgotado</span><button class="toggle ${p && p.soldOut ? 'is-on' : ''}" id="toggleSoldOut" type="button"></button></div>
@@ -160,15 +170,43 @@
       document.querySelectorAll('[data-rm-remove]').forEach(btn => btn.addEventListener('click', () => { removeOpts.splice(+btn.dataset.rmRemove, 1); paintRemoveOpts(); }));
     }
 
+    function paintFicha() {
+      const rows = document.getElementById('fichaRows');
+      if (!rows) return;
+      const insumosDisponiveis = A.insumos || [];
+      rows.innerHTML = fichaItems.map((it, i) => `
+        <div class="field-row" style="align-items:flex-end; margin-bottom:8px;">
+          <div class="field" style="margin-bottom:0;">
+            <select data-ficha-insumo="${i}">
+              ${insumosDisponiveis.map(ins => `<option value="${ins.id}" ${it.insumoId === ins.id ? 'selected' : ''}>${escapeHtml(ins.nome)} (${escapeHtml(ins.unidadeMedida)})</option>`).join('')}
+            </select>
+          </div>
+          <div style="display:flex; gap:8px; align-items:flex-end;">
+            <div class="field" style="margin-bottom:0; width:100px;"><input type="number" step="0.01" min="0" data-ficha-qtd="${i}" value="${it.quantidade}" placeholder="Qtd."></div>
+            <button class="icon-only-btn" data-rm-ficha="${i}" style="margin-bottom:1px;" title="Remover">🗑️</button>
+          </div>
+        </div>`).join('') || `<p class="muted" style="font-size:0.8rem; margin-bottom:8px;">Nenhum insumo ligado a este produto.</p>`;
+      document.querySelectorAll('[data-ficha-insumo]').forEach(sel => sel.addEventListener('change', () => { fichaItems[+sel.dataset.fichaInsumo].insumoId = sel.value; }));
+      document.querySelectorAll('[data-ficha-qtd]').forEach(inp => inp.addEventListener('input', () => { fichaItems[+inp.dataset.fichaQtd].quantidade = parseFloat(inp.value) || 0; }));
+      document.querySelectorAll('[data-rm-ficha]').forEach(btn => btn.addEventListener('click', () => { fichaItems.splice(+btn.dataset.rmFicha, 1); paintFicha(); }));
+    }
+
     paintExtras();
     paintRemoveOpts();
+    paintFicha();
     document.getElementById('addExtraBtn').addEventListener('click', () => { extras.push({ name: '', price: 0 }); paintExtras(); });
     document.getElementById('addRemoveBtn').addEventListener('click', () => { removeOpts.push(''); paintRemoveOpts(); });
+    const addFichaBtn = document.getElementById('addFichaBtn');
+    if (addFichaBtn) addFichaBtn.addEventListener('click', () => {
+      if (!(A.insumos || []).length) { showToast('Cadastre um insumo em "Estoque" primeiro.', 'error'); return; }
+      fichaItems.push({ insumoId: A.insumos[0].id, quantidade: 1 });
+      paintFicha();
+    });
 
     document.querySelectorAll('#adminModalContent .toggle').forEach(t => t.addEventListener('click', () => t.classList.toggle('is-on')));
     document.getElementById('closeProductModal').addEventListener('click', A.closeAllOverlays);
     document.getElementById('cancelProductBtn').addEventListener('click', A.closeAllOverlays);
-    document.getElementById('saveProductBtn').addEventListener('click', () => saveProduct(extras, removeOpts));
+    document.getElementById('saveProductBtn').addEventListener('click', () => saveProduct(extras, removeOpts, fichaItems));
 
     const uploadZone = document.getElementById('uploadZone');
     const uploadInput = document.getElementById('uploadInput');
@@ -194,7 +232,7 @@
     document.getElementById('adminModal').classList.add('is-open');
   }
 
-  async function saveProduct(extras, removeOpts) {
+  async function saveProduct(extras, removeOpts, fichaItems) {
     const name = document.getElementById('fName').value.trim();
     const price = parseFloat(document.getElementById('fPrice').value);
     let valid = true;
@@ -229,6 +267,7 @@
       if (sync) {
         const res = await sync.upsertProduct(A.editingProductId, p);
         if (!res.ok) { showToast('Salvo localmente, mas falhou ao gravar no banco: ' + (res.error && res.error.message || ''), 'error'); return; }
+        await sync.saveFichaTecnica(A.editingProductId, (fichaItems || []).filter(f => f.insumoId && f.quantidade > 0));
       }
       showToast('Produto atualizado');
     } else {
@@ -241,6 +280,7 @@
         const res = await sync.upsertProduct(null, newProduct);
         if (res.ok && res.newId) { newProduct.id = res.newId; persist('admin_products', A.products); }
         else if (!res.ok) { showToast('Salvo localmente, mas falhou ao gravar no banco: ' + (res.error && res.error.message || ''), 'error'); return; }
+        await sync.saveFichaTecnica(newProduct.id, (fichaItems || []).filter(f => f.insumoId && f.quantidade > 0));
       }
       showToast('Produto criado');
     }

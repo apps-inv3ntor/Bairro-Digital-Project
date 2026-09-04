@@ -68,6 +68,49 @@
   }
 
   const PAYMENT_LABELS = { pix: 'Pix', credito: 'Cartão de crédito', debito: 'Cartão de débito', dinheiro: 'Dinheiro' };
+
+  function insumoFromDb(i) {
+    return {
+      id: i.id, nome: i.nome, categoria: i.categoria || '',
+      quantidadeAtual: Number(i.quantidade_atual), capacidadeMaxima: Number(i.capacidade_maxima),
+      unidadeMedida: i.unidade_medida,
+    };
+  }
+  function insumoToDb(i) {
+    return { nome: i.nome, categoria: i.categoria || null, quantidade_atual: i.quantidadeAtual, capacidade_maxima: i.capacidadeMaxima, unidade_medida: i.unidadeMedida };
+  }
+  async function upsertInsumo(localId, data) {
+    if (!window.SUPABASE_READY) return { ok: true };
+    const payload = insumoToDb(data);
+    if (localId) {
+      const { error } = await window.sb.from('insumos').update(payload).eq('id', localId);
+      return { ok: !error, error };
+    }
+    const { data: inserted, error } = await window.sb.from('insumos').insert(payload).select('id').single();
+    return { ok: !error, error, newId: inserted ? inserted.id : null };
+  }
+  async function deleteInsumoRemote(id) {
+    if (!window.SUPABASE_READY) return { ok: true };
+    const { error } = await window.sb.from('insumos').delete().eq('id', id);
+    return { ok: !error, error };
+  }
+
+  async function getFichaTecnica(productId) {
+    if (!window.SUPABASE_READY) return [];
+    const { data, error } = await window.sb.from('ficha_tecnica').select('id, insumo_id, quantidade_gasta').eq('product_id', productId);
+    if (error) { console.error('Erro ao buscar ficha técnica:', error); return []; }
+    return data || [];
+  }
+  async function saveFichaTecnica(productId, itens) {
+    if (!window.SUPABASE_READY) return { ok: true };
+    // Substitui a lista inteira: mais simples e confiável do que tentar diferenciar o que mudou.
+    const { error: delErr } = await window.sb.from('ficha_tecnica').delete().eq('product_id', productId);
+    if (delErr) return { ok: false, error: delErr };
+    if (!itens.length) return { ok: true };
+    const rows = itens.map(it => ({ product_id: productId, insumo_id: it.insumoId, quantidade_gasta: it.quantidade }));
+    const { error } = await window.sb.from('ficha_tecnica').insert(rows);
+    return { ok: !error, error };
+  }
   function orderFromDb(o) {
     return {
       id: (o.order_number || '').replace('#', ''),
@@ -86,9 +129,18 @@
     };
   }
 
-  async function updateOrderStatusRemote(dbId, status) {
+  async function updateOrderStatusRemote(dbId, status, order) {
     if (!window.SUPABASE_READY) return { ok: true };
-    const { error } = await window.sb.from('orders').update({ order_status: status }).eq('id', dbId);
+    const patch = { order_status: status };
+    // Pedido em dinheiro: "confirmado pela loja" é o momento em que consideramos o pagamento
+    // recebido (ele é pago na entrega/retirada, não online) — é aqui que o estoque é baixado.
+    const isCashFirstConfirm = order && order.payment && order.payment.startsWith('Dinheiro') && status === 'confirmado' && order.paymentStatus !== 'pago';
+    if (isCashFirstConfirm) patch.payment_status = 'pago';
+    const { error } = await window.sb.from('orders').update(patch).eq('id', dbId);
+    if (!error && isCashFirstConfirm) {
+      const { error: estoqueErr } = await window.sb.rpc('baixar_estoque_pedido', { p_order_id: dbId });
+      if (estoqueErr) console.error('Falha ao dar baixa no estoque:', estoqueErr);
+    }
     return { ok: !error, error };
   }
 
@@ -218,7 +270,8 @@
     try {
       const [{ data: cats, error: catsErr }, { data: prods, error: prodsErr }, { data: coupons, error: couponsErr },
              { data: areas, error: areasErr }, { data: banners, error: bannersErr }, { data: settingsRows, error: settingsErr },
-             { data: rawOrders, error: ordersErr }, { data: rawAdminUsers, error: adminUsersErr }] = await Promise.all([
+             { data: rawOrders, error: ordersErr }, { data: rawAdminUsers, error: adminUsersErr },
+             { data: rawInsumos, error: insumosErr }] = await Promise.all([
         window.sb.from('categories').select('*').order('display_order'),
         window.sb.from('products').select('*'),
         window.sb.from('coupons').select('*'),
@@ -227,6 +280,7 @@
         window.sb.from('store_settings').select('*'),
         window.sb.from('orders').select('*, delivery_areas(name), order_items(product_name, quantity)').order('created_at', { ascending: false }),
         window.sb.from('admin_users').select('*').order('created_at'),
+        window.sb.from('insumos').select('*').order('nome'),
       ]);
       if (catsErr || prodsErr) {
         A.showToast('Não foi possível carregar o catálogo do banco — mostrando dados salvos localmente.', 'error');
@@ -242,6 +296,10 @@
       if (!adminUsersErr && rawAdminUsers) {
         A.adminUsers = rawAdminUsers.map(u => ({ userId: u.user_id, name: u.name, email: u.email || '', role: u.role, active: u.active }));
         A.persist('admin_admin_users', A.adminUsers);
+      }
+      if (!insumosErr && rawInsumos) {
+        A.insumos = rawInsumos.map(insumoFromDb);
+        A.persist('admin_insumos', A.insumos);
       }
       if (!settingsErr && settingsRows && settingsRows.length) {
         settingsRows.forEach(row => {
@@ -267,6 +325,6 @@
   window.__brasaCatalogSync = {
     upsertProduct, deleteProductRemote, upsertCategory, deleteCategoryRemote,
     upsertCoupon, deleteCouponRemote, upsertArea, deleteAreaRemote, upsertBanner, deleteBannerRemote, saveSettingsKey,
-    updateOrderStatusRemote,
+    updateOrderStatusRemote, upsertInsumo, deleteInsumoRemote, getFichaTecnica, saveFichaTecnica,
   };
 })();

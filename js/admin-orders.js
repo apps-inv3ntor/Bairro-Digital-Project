@@ -248,7 +248,7 @@
       renderKanban();
       const sync = window.__brasaCatalogSync;
       if (sync && o._dbId) {
-        const res = await sync.updateOrderStatusRemote(o._dbId, nextStage);
+        const res = await sync.updateOrderStatusRemote(o._dbId, nextStage, o);
         if (!res.ok) { showToast('Atualizado localmente, mas falhou ao gravar no banco: ' + (res.error && res.error.message || ''), 'error'); return; }
       }
       showToast(`Pedido #${o.id} avançou para "${ORDER_TIMELINE_LABELS[nextStage]}"`);

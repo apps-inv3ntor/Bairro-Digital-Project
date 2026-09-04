@@ -803,11 +803,10 @@
     const fee = currentDeliveryFee();
     const total = Math.max(0, subtotal - discount) + fee;
 
-    const usesRealPayment = window.SUPABASE_READY &&
-      (checkoutData.pagamento === 'pix' || checkoutData.pagamento === 'credito' || checkoutData.pagamento === 'debito');
+    const usesRealPayment = window.SUPABASE_READY;
 
     if (!usesRealPayment) {
-      // Dinheiro na entrega (ou Supabase ainda não configurado): fluxo local de sempre
+      // Supabase ainda não configurado: fluxo local de sempre (só pra nunca travar a demonstração)
       lastOrder = {
         code: '#' + Math.floor(1000 + Math.random() * 9000),
         items: cart.map(l => { const p = findProduct(l.productId); return { name: p ? p.name : 'Item', qty: l.qty }; }),
@@ -848,7 +847,9 @@
     };
 
     try {
-      const fnName = checkoutData.pagamento === 'pix' ? 'create-pix-payment' : 'create-card-payment';
+      const fnName = checkoutData.pagamento === 'pix' ? 'create-pix-payment'
+        : checkoutData.pagamento === 'dinheiro' ? 'create-cash-order'
+        : 'create-card-payment';
       const { data, error } = await window.sb.functions.invoke(fnName, { body: payload });
 
       if (error || !data || data.error) {
@@ -875,6 +876,13 @@
 
       if (checkoutData.pagamento === 'pix') {
         openPixPaymentModal(data);
+      } else if (checkoutData.pagamento === 'dinheiro') {
+        lastOrder = { code: String(data.orderNumber), items: [], total: data.total, createdAt: Date.now(), status: 'recebido', customer: checkoutData };
+        saveJSON('brasa_last_order', lastOrder);
+        closeAllOverlays();
+        showToast('Pedido confirmado! Pague na entrega/retirada.');
+        trackFoundOrder = true;
+        setTimeout(() => openTrackModal(), 260);
       } else {
         showToast('Redirecionando para o pagamento...');
         window.location.href = data.checkoutUrl;

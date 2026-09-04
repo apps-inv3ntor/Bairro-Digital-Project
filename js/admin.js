@@ -38,6 +38,7 @@
   let banners = loadJSON('admin_banners', ADMIN_BANNERS);
   let orders = loadJSON('admin_orders', ADMIN_ORDERS);
   let adminUsers = loadJSON('admin_admin_users', []);
+  let insumos = loadJSON('admin_insumos', []);
   let settings = loadJSON('admin_settings', {
     storeName: 'Brasa Burger Co.', phone: '(11) 99999-2026', address: 'Rua das Brasas, 147 — Centro',
     instagram: '@brasaburgerco', minOrder: 20,
@@ -222,7 +223,7 @@
      ============================================================ */
   const VIEW_TITLES = {
     'visao-geral': 'Visão geral', 'pedidos': 'Pedidos', 'produtos': 'Produtos', 'categorias': 'Categorias',
-    'adicionais': 'Adicionais', 'cupons': 'Cupons', 'areas': 'Áreas de entrega', 'banners': 'Banners e promoções',
+    'adicionais': 'Adicionais', 'estoque': 'Estoque', 'cupons': 'Cupons', 'areas': 'Áreas de entrega', 'banners': 'Banners e promoções',
     'configuracoes': 'Configurações',
   };
   const VIEW_RENDERERS = {}; // preenchido mais abaixo por cada módulo de view
@@ -468,6 +469,7 @@
     get orders() { return orders; }, set orders(v) { orders = v; },
     get currentUser() { return currentUser; },
     get adminUsers() { return adminUsers; }, set adminUsers(v) { adminUsers = v; },
+    get insumos() { return insumos; }, set insumos(v) { insumos = v; },
     get settings() { return settings; }, set settings(v) { settings = v; },
     findProduct, findCategory, CATEGORY_NAME,
     get currentView() { return currentView; },
