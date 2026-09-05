@@ -262,6 +262,14 @@
     if (A.currentView === 'pedidos' || A.currentView === 'visao-geral') A.goToView(A.currentView);
     if (hasNewOrder) A.showToast('🔔 Novo pedido recebido!');
     if (hasNewlyPaid) A.showToast('✅ Um pagamento foi confirmado!');
+
+    // Estoque também precisa se atualizar sozinho (baixa acontece em segundo plano, sem o admin fazer nada)
+    const { data: rawInsumos, error: insumosErr } = await window.sb.from('insumos').select('*').order('nome');
+    if (!insumosErr && rawInsumos) {
+      A.insumos = rawInsumos.map(insumoFromDb);
+      A.persist('admin_insumos', A.insumos);
+      if (A.currentView === 'estoque') A.goToView('estoque');
+    }
   }
   function startOrdersPolling() {
     if (ordersPollTimer) return; // já rodando, evita duplicar
