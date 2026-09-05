@@ -124,7 +124,12 @@
       address: o.address || '',
       payment: (PAYMENT_LABELS[o.payment_method] || o.payment_method) + (o.payment_status === 'pago' ? ' (pago)' : ''),
       paymentStatus: o.payment_status,
-      items: (o.order_items || []).map(i => ({ qty: i.quantity, name: i.product_name })),
+      items: (o.order_items || []).map(i => ({
+        qty: i.quantity, name: i.product_name,
+        observation: i.observation || '',
+        extras: Array.isArray(i.selected_extras) ? i.selected_extras : [],
+        removals: Array.isArray(i.selected_removals) ? i.selected_removals : [],
+      })),
       subtotal: Number(o.subtotal), discount: Number(o.discount), fee: Number(o.delivery_fee), total: Number(o.total),
     };
   }
@@ -240,7 +245,7 @@
     const A = window.__brasaAdmin;
     const { data: rawOrders, error } = await window.sb
       .from('orders')
-      .select('*, delivery_areas(name), order_items(product_name, quantity)')
+      .select('*, delivery_areas(name), order_items(product_name, quantity, observation, selected_extras, selected_removals)')
       .order('created_at', { ascending: false });
     if (error || !rawOrders) return;
     const fresh = rawOrders.map(orderFromDb);
@@ -278,7 +283,7 @@
         window.sb.from('delivery_areas').select('*'),
         window.sb.from('banners').select('*'),
         window.sb.from('store_settings').select('*'),
-        window.sb.from('orders').select('*, delivery_areas(name), order_items(product_name, quantity)').order('created_at', { ascending: false }),
+        window.sb.from('orders').select('*, delivery_areas(name), order_items(product_name, quantity, observation, selected_extras, selected_removals)').order('created_at', { ascending: false }),
         window.sb.from('admin_users').select('*').order('created_at'),
         window.sb.from('insumos').select('*').order('nome'),
       ]);

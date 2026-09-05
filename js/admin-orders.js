@@ -216,7 +216,13 @@
         </div>
         <div class="detail-block">
           <h4>Itens</h4>
-          ${o.items.map(i => `<div class="detail-line"><span>${i.qty}× ${escapeHtml(i.name)}</span></div>`).join('')}
+          ${o.items.map(i => `
+            <div class="detail-line" style="flex-direction:column; align-items:flex-start; gap:2px;">
+              <span>${i.qty}× ${escapeHtml(i.name)}</span>
+              ${(i.extras || []).map(e => `<span class="muted" style="font-size:0.8rem; padding-left:12px;">+ ${escapeHtml(typeof e === 'string' ? e : e.name)}</span>`).join('')}
+              ${(i.removals || []).map(r => `<span class="muted" style="font-size:0.8rem; padding-left:12px;">− ${escapeHtml(r)}</span>`).join('')}
+              ${i.observation ? `<span style="font-size:0.8rem; padding-left:12px; color:var(--amber);">📝 ${escapeHtml(i.observation)}</span>` : ''}
+            </div>`).join('')}
           <div class="detail-line"><span>Subtotal</span><span>${formatBRL(o.subtotal)}</span></div>
           ${o.discount > 0 ? `<div class="detail-line" style="color:var(--green);"><span>Desconto</span><span>− ${formatBRL(o.discount)}</span></div>` : ''}
           <div class="detail-line"><span>Taxa de entrega</span><span>${formatBRL(o.fee)}</span></div>
