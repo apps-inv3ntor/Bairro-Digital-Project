@@ -96,7 +96,13 @@
         Object.keys(COUPONS).forEach(k => delete COUPONS[k]);
         coupons.forEach(c => {
           const label = c.type === 'percent' ? `${c.value}% OFF` : c.type === 'fixed' ? `R$ ${Number(c.value).toFixed(2)} OFF` : 'Frete grátis';
-          COUPONS[c.code] = { type: c.type, value: Number(c.value), label };
+          // minOrder/active/expiry/limit/uses precisam vir junto — sem eles o site não tinha
+          // como saber que um cupom exige pedido mínimo, expirou, está inativo ou já bateu o limite
+          COUPONS[c.code] = {
+            type: c.type, value: Number(c.value), label,
+            minOrder: Number(c.min_order) || 0, active: c.active !== false,
+            expiry: c.expires_at || null, limit: c.usage_limit || null, uses: c.usage_count || 0,
+          };
         });
       }
 

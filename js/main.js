@@ -74,6 +74,9 @@
     if (!appliedCoupon) return 0;
     const coupon = COUPONS[appliedCoupon];
     if (!coupon) return 0;
+    // Cupom só vale a partir do pedido mínimo dele — reforçado aqui (não só no momento de
+    // aplicar) porque o carrinho pode mudar depois (ex: cliente remove item e fica abaixo do mínimo)
+    if (coupon.minOrder && subtotal < coupon.minOrder) return 0;
     if (coupon.type === 'percent') return subtotal * (coupon.value / 100);
     return coupon.value;
   }
@@ -452,18 +455,42 @@
     renderInlineCheckout();
   }
 
-  function applyCoupon() {
+  async function applyCoupon() {
     const input = document.getElementById('couponInput');
     const code = input.value.trim().toUpperCase();
     if (!code) return;
-    if (COUPONS[code]) {
+
+    // Sempre que o Supabase estiver conectado, valida no banco via validate_coupon —
+    // é a função que já existia pronta pra isso (checa ativo/expirado/limite/pedido mínimo
+    // no servidor, então não dá pra burlar mudando algo no navegador).
+    if (window.SUPABASE_READY) {
+      const { data, error } = await window.sb.rpc('validate_coupon', { p_code: code, p_subtotal: cartSubtotal() });
+      const result = data && data[0];
+      if (error || !result) { showToast('Não foi possível validar o cupom agora, tente de novo.', 'error'); return; }
+      if (!result.valid) { showToast(result.reason || 'Cupom inválido ou expirado', 'error'); return; }
+      // Guarda a versão local (com minOrder etc., vinda do site-sync) se já existir, senão monta
+      // uma a partir do que o RPC devolveu — pra discountAmount() continuar sabendo o pedido mínimo
+      // se o carrinho mudar depois de aplicar.
+      const label = result.type === 'percent' ? `${result.value}% OFF` : result.type === 'fixed' ? `R$ ${Number(result.value).toFixed(2)} OFF` : 'Frete grátis';
+      COUPONS[code] = Object.assign({ type: result.type, value: Number(result.value), label }, COUPONS[code]);
       appliedCoupon = code;
       saveJSON('brasa_coupon', code);
       renderCart();
-      showToast(`Cupom ${code} aplicado — ${COUPONS[code].label}`);
-    } else {
-      showToast('Cupom inválido ou expirado', 'error');
+      showToast(`Cupom ${code} aplicado — ${label}`);
+      return;
     }
+
+    // Modo demonstração (sem Supabase conectado) — usa a lista local de exemplo.
+    const coupon = COUPONS[code];
+    if (!coupon) { showToast('Cupom inválido ou expirado', 'error'); return; }
+    if (coupon.minOrder && cartSubtotal() < coupon.minOrder) {
+      showToast(`Esse cupom vale a partir de ${formatBRL(coupon.minOrder)} em pedidos`, 'error');
+      return;
+    }
+    appliedCoupon = code;
+    saveJSON('brasa_coupon', code);
+    renderCart();
+    showToast(`Cupom ${code} aplicado — ${coupon.label}`);
   }
 
   /* ============================================================
