@@ -43,15 +43,15 @@
     }
     tbody.innerHTML = A.coupons.map(c => `
       <tr>
-        <td><strong>${c.code}</strong></td>
+        <td><strong>${escapeHtml(c.code)}</strong></td>
         <td>${couponValueLabel(c)}</td>
         <td>${c.minOrder > 0 ? formatBRL(c.minOrder) : '—'}</td>
         <td>${c.uses}${c.limit ? ' / ' + c.limit : ''}</td>
         <td>${c.expiry ? new Date(c.expiry + 'T00:00:00').toLocaleDateString('pt-BR') : 'Sem validade'}</td>
         <td><span class="pill ${c.active ? 'pill-green' : 'pill-gray'}">${c.active ? 'Ativo' : 'Inativo'}</span></td>
         <td class="row-actions">
-          <button class="icon-only-btn" data-edit-coupon="${c.code}" title="Editar">✏️</button>
-          <button class="icon-only-btn" data-del-coupon="${c.code}" title="Excluir">🗑️</button>
+          <button class="icon-only-btn" data-edit-coupon="${escapeHtml(c.code)}" title="Editar">✏️</button>
+          <button class="icon-only-btn" data-del-coupon="${escapeHtml(c.code)}" title="Excluir">🗑️</button>
         </td>
       </tr>`).join('');
 
@@ -82,7 +82,7 @@
     el.innerHTML = `
       <div class="modal__head"><h2>${c ? 'Editar cupom' : 'Novo cupom'}</h2><button class="icon-only-btn" id="closeCouponModal">✕</button></div>
       <div class="modal__body">
-        <div class="field"><label>Código do cupom</label><input type="text" id="fCouponCode" value="${c ? c.code : ''}" placeholder="Ex: BRASA15" style="text-transform:uppercase;" ${c ? 'disabled' : ''}><div class="field-error-msg" id="errCouponCode">Digite um código único.</div></div>
+        <div class="field"><label>Código do cupom</label><input type="text" id="fCouponCode" value="${c ? escapeHtml(c.code) : ''}" placeholder="Ex: BRASA15" style="text-transform:uppercase;" ${c ? 'disabled' : ''}><div class="field-error-msg" id="errCouponCode">Use só letras, números e hífen.</div></div>
         <div class="field-row">
           <div class="field"><label>Tipo de desconto</label>
             <select id="fCouponType">
@@ -116,7 +116,10 @@
     document.getElementById('closeCouponModal').addEventListener('click', A.closeAllOverlays);
     document.getElementById('cancelCouponBtn').addEventListener('click', A.closeAllOverlays);
     document.getElementById('saveCouponBtn').addEventListener('click', async () => {
-      const code = document.getElementById('fCouponCode').value.trim().toUpperCase();
+      // Só letras, números e hífen — qualquer outro caractere (aspas, &, <, > etc.) quebra os
+      // atributos data-edit-coupon/data-del-coupon da tabela e faz o botão "editar" abrir o
+      // cupom errado (ou um cupom "novo" em branco) da próxima vez.
+      const code = document.getElementById('fCouponCode').value.trim().toUpperCase().replace(/[^A-Z0-9-]/g, '');
       const isDupe = !c && A.coupons.some(x => x.code === code);
       toggleErr('fCouponCode', 'errCouponCode', !code || isDupe);
       if (!code || isDupe) { if (isDupe) showToast('Já existe um cupom com esse código', 'error'); return; }
@@ -136,7 +139,11 @@
       A.closeAllOverlays();
       renderCouponsTable();
       if (sync) {
-        const res = await sync.upsertCoupon(code, { code, uses: 0, ...data }, isNew);
+        // Preserva o número de usos já registrado ao editar; só começa em 0 pra cupom novo.
+        // (mandar uses:0 sempre aqui zerava o contador de usos no banco toda vez que o cupom
+        // era editado, mesmo que ele já tivesse sido usado dezenas de vezes)
+        const usesForRemote = isNew ? 0 : c.uses;
+        const res = await sync.upsertCoupon(code, { code, uses: usesForRemote, ...data }, isNew);
         if (!res.ok) { showToast('Salvo localmente, mas falhou ao gravar no banco: ' + (res.error && res.error.message || ''), 'error'); return; }
       }
       showToast(isNew ? 'Cupom criado' : 'Cupom atualizado');
