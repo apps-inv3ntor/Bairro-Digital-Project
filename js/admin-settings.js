@@ -4,9 +4,18 @@
 (function () {
   'use strict';
   const A = window.__brasaAdmin;
-  const { showToast, persist, escapeHtml } = A;
+  const { showToast, persist, escapeHtml, uid } = A;
 
   const DAY_LABELS = { seg: 'Segunda', ter: 'Terça', qua: 'Quarta', qui: 'Quinta', sex: 'Sexta', sab: 'Sábado', dom: 'Domingo' };
+
+  function faqItemRow(item, i) {
+    return `
+      <div class="field-row" data-faq-row="${item.id}" style="align-items:flex-start; border-bottom:1px solid var(--border); padding:14px 0;">
+        <div class="field" style="flex:1;"><label>Pergunta ${i + 1}</label><input type="text" data-faq-question value="${escapeHtml(item.question)}"></div>
+        <button class="btn btn-danger" data-remove-faq="${item.id}" type="button" style="margin-top:26px; padding:8px 12px;" title="Remover pergunta">🗑️</button>
+      </div>
+      <div class="field" style="margin-top:-8px; margin-bottom:14px;"><label>Resposta</label><textarea rows="2" data-faq-answer>${escapeHtml(item.answer)}</textarea></div>`;
+  }
 
   A.VIEW_RENDERERS['configuracoes'] = function renderSettings() {
     const root = document.getElementById('viewContent');
@@ -16,6 +25,9 @@
         <button class="tab-btn" data-tab="entrega">Raio de cobertura</button>
         <button class="tab-btn" data-tab="horarios">Horário de funcionamento</button>
         <button class="tab-btn" data-tab="pagamentos">Pagamentos</button>
+        <button class="tab-btn" data-tab="home">Página inicial</button>
+        <button class="tab-btn" data-tab="banner">Banner de oferta</button>
+        <button class="tab-btn" data-tab="faq">Perguntas frequentes</button>
         <button class="tab-btn" data-tab="usuarios">Usuários e permissões</button>
         <button class="tab-btn" data-tab="notificacoes">Notificações</button>
       </div>
@@ -79,6 +91,57 @@
           <div class="field"><label>Nome do recebedor</label><input type="text" id="sPixRecipient" value="${A.settings.pixRecipient || ''}" placeholder="Ex: Brasa Burger Co."></div>
           <button class="btn btn-primary" id="savePixBtn">Salvar dados do Pix</button>
         </div>
+      </div>
+
+      <div class="tab-panel" id="tabHome">
+        <div class="card" style="padding:22px 24px; max-width:640px;">
+          <p class="muted" style="margin:0 0 14px;">A 1ª faixa da home ("Mais pedidos") sempre mostra os produtos marcados como destaque em "Produtos". As outras duas você customiza aqui: o título e quais categorias de produto aparecem em cada uma.</p>
+          ${['section2', 'section3'].map((key, i) => {
+            const sec = A.settings.homeSections[key];
+            return `
+            <div style="border:1px solid var(--border); border-radius:12px; padding:16px; margin-bottom:14px;">
+              <div class="field"><label>Título da faixa ${i + 2}</label><input type="text" id="sHome${key}Title" value="${escapeHtml(sec.title)}"></div>
+              <label style="display:block; margin-bottom:6px; font-size:0.85rem; color:var(--muted, #999);">Quais categorias aparecem nessa faixa</label>
+              <div style="display:flex; flex-wrap:wrap; gap:8px;">
+                ${(A.categories || []).map(c => `
+                  <label style="display:flex; align-items:center; gap:6px; border:1px solid var(--border); border-radius:8px; padding:6px 10px; cursor:pointer; font-size:0.85rem;">
+                    <input type="checkbox" data-home-cat="${key}" value="${c.id}" ${sec.categoryIds.includes(c.id) ? 'checked' : ''}> ${escapeHtml(c.name)}
+                  </label>`).join('')}
+              </div>
+            </div>`;
+          }).join('')}
+          <button class="btn btn-primary" id="saveHomeSectionsBtn">Salvar faixas da home</button>
+        </div>
+      </div>
+
+      <div class="tab-panel" id="tabBanner">
+        <div class="card" style="padding:22px 24px; max-width:560px;">
+          <div class="field-inline" style="margin-bottom:14px;"><span class="fi-label">Banner ativo</span><button class="toggle ${A.settings.promoBanner.active ? 'is-on' : ''}" id="bannerActiveToggle" type="button"></button></div>
+          <div class="field"><label>Texto pequeno (acima do título)</label><input type="text" id="sBannerEyebrow" value="${escapeHtml(A.settings.promoBanner.eyebrow)}"></div>
+          <div class="field"><label>Título (use quebra de linha pra 2 linhas)</label><textarea id="sBannerTitle" rows="2">${escapeHtml(A.settings.promoBanner.title)}</textarea></div>
+          <div class="field"><label>Texto do botão</label><input type="text" id="sBannerButtonText" value="${escapeHtml(A.settings.promoBanner.buttonText)}"></div>
+          <div class="field">
+            <label>Pra onde o botão leva</label>
+            <select id="sBannerLinkTarget">
+              <option value="#cardapio" ${A.settings.promoBanner.linkTarget === '#cardapio' ? 'selected' : ''}>Cardápio (topo)</option>
+              ${(A.categories || []).map(c => `<option value="#cat-${c.id}" ${A.settings.promoBanner.linkTarget === '#cat-' + c.id ? 'selected' : ''}>Categoria: ${escapeHtml(c.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="field-row">
+            <div class="field"><label>Texto do selo de cupom</label><input type="text" id="sBannerCouponLabel" value="${escapeHtml(A.settings.promoBanner.couponLabel)}"></div>
+            <div class="field"><label>Código do cupom exibido</label><input type="text" id="sBannerCouponCode" value="${escapeHtml(A.settings.promoBanner.couponCode)}"></div>
+          </div>
+          <p class="muted" style="font-size:0.8rem; margin:4px 0 14px;">Esse código é só o texto mostrado no banner (o "selo") — pra ele realmente dar desconto, crie um cupom de verdade com esse mesmo código em Marketing → Cupons.</p>
+          <button class="btn btn-primary" id="saveBannerBtn">Salvar banner</button>
+        </div>
+      </div>
+
+      <div class="tab-panel" id="tabFaq">
+        <div class="toolbar"><button class="btn btn-primary" id="addFaqBtn" style="margin-left:auto;">+ Nova pergunta</button></div>
+        <div class="card" style="padding:8px 24px;" id="faqEditorList">
+          ${A.settings.faq.map((item, i) => faqItemRow(item, i)).join('')}
+        </div>
+        <div style="padding:16px 0;"><button class="btn btn-primary" id="saveFaqBtn">Salvar perguntas frequentes</button></div>
       </div>
 
       <div class="tab-panel" id="tabUsuarios">
@@ -172,7 +235,7 @@
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('is-active'));
       document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('is-active'));
       btn.classList.add('is-active');
-      const map = { loja: 'tabLoja', entrega: 'tabEntrega', horarios: 'tabHorarios', pagamentos: 'tabPagamentos', usuarios: 'tabUsuarios', notificacoes: 'tabNotificacoes' };
+      const map = { loja: 'tabLoja', entrega: 'tabEntrega', horarios: 'tabHorarios', pagamentos: 'tabPagamentos', home: 'tabHome', banner: 'tabBanner', faq: 'tabFaq', usuarios: 'tabUsuarios', notificacoes: 'tabNotificacoes' };
       document.getElementById(map[btn.dataset.tab]).classList.add('is-active');
     });
 
@@ -257,11 +320,17 @@
         const to = document.querySelector(`[data-day-to="${day}"]`).value;
         A.settings.hours[day] = { open, from, to };
       });
+      // Mantém a pergunta "Qual o horário de funcionamento?" do FAQ sempre batendo com o
+      // horário real — é exatamente o que estava desatualizado antes.
+      const faqHours = A.settings.faq.find(f => f.id === 'f1');
+      let faqNeedsSync = false;
+      if (faqHours) { faqHours.answer = A.describeHours(A.settings.hours); faqNeedsSync = true; }
       persist('admin_settings', A.settings);
       const sync = window.__brasaCatalogSync;
       if (sync) {
         const res = await sync.saveSettingsKey('hours', A.settings.hours);
         if (!res.ok) { showToast('Salvo localmente, mas falhou ao gravar no banco: ' + (res.error && res.error.message || ''), 'error'); return; }
+        if (faqNeedsSync) await sync.saveSettingsKey('faq_items', A.settings.faq);
       }
       showToast('Horários de funcionamento atualizados');
     });
@@ -269,11 +338,16 @@
     document.querySelectorAll('[data-pay]').forEach(t => t.addEventListener('click', function () { this.classList.toggle('is-on'); }));
     document.getElementById('savePaymentsBtn').addEventListener('click', async () => {
       document.querySelectorAll('[data-pay]').forEach(t => { A.settings.payments[t.dataset.pay] = t.classList.contains('is-on'); });
+      // Mesma lógica: mantém a pergunta de formas de pagamento do FAQ sempre correta.
+      const faqPay = A.settings.faq.find(f => f.id === 'f2');
+      let faqNeedsSync = false;
+      if (faqPay) { faqPay.answer = A.describePayments(A.settings.payments); faqNeedsSync = true; }
       persist('admin_settings', A.settings);
       const sync = window.__brasaCatalogSync;
       if (sync) {
         const res = await sync.saveSettingsKey('payments_enabled', A.settings.payments);
         if (!res.ok) { showToast('Salvo localmente, mas falhou ao gravar no banco: ' + (res.error && res.error.message || ''), 'error'); return; }
+        if (faqNeedsSync) await sync.saveSettingsKey('faq_items', A.settings.faq);
       }
       showToast('Formas de pagamento atualizadas');
     });
@@ -300,6 +374,73 @@
         if (!res.ok) { showToast('Salvo localmente, mas falhou ao gravar no banco: ' + (res.error && res.error.message || ''), 'error'); return; }
       }
       showToast('Preferências de notificação atualizadas');
+    });
+
+    document.getElementById('saveHomeSectionsBtn').addEventListener('click', async () => {
+      ['section2', 'section3'].forEach(key => {
+        A.settings.homeSections[key].title = document.getElementById(`sHome${key}Title`).value.trim();
+        A.settings.homeSections[key].categoryIds = [...document.querySelectorAll(`[data-home-cat="${key}"]:checked`)].map(el => el.value);
+      });
+      persist('admin_settings', A.settings);
+      const sync = window.__brasaCatalogSync;
+      if (sync) {
+        const res = await sync.saveSettingsKey('home_sections', A.settings.homeSections);
+        if (!res.ok) { showToast('Salvo localmente, mas falhou ao gravar no banco: ' + (res.error && res.error.message || ''), 'error'); return; }
+      }
+      showToast('Faixas da home atualizadas');
+    });
+
+    const bannerToggle = document.getElementById('bannerActiveToggle');
+    if (bannerToggle) bannerToggle.addEventListener('click', () => bannerToggle.classList.toggle('is-on'));
+    document.getElementById('saveBannerBtn').addEventListener('click', async () => {
+      A.settings.promoBanner = {
+        active: bannerToggle.classList.contains('is-on'),
+        eyebrow: document.getElementById('sBannerEyebrow').value.trim(),
+        title: document.getElementById('sBannerTitle').value,
+        buttonText: document.getElementById('sBannerButtonText').value.trim(),
+        linkTarget: document.getElementById('sBannerLinkTarget').value,
+        couponLabel: document.getElementById('sBannerCouponLabel').value.trim(),
+        couponCode: document.getElementById('sBannerCouponCode').value.trim(),
+      };
+      persist('admin_settings', A.settings);
+      const sync = window.__brasaCatalogSync;
+      if (sync) {
+        const res = await sync.saveSettingsKey('promo_banner', A.settings.promoBanner);
+        if (!res.ok) { showToast('Salvo localmente, mas falhou ao gravar no banco: ' + (res.error && res.error.message || ''), 'error'); return; }
+      }
+      showToast('Banner de oferta atualizado');
+    });
+
+    function rerenderFaqList() {
+      document.getElementById('faqEditorList').innerHTML = A.settings.faq.map((item, i) => faqItemRow(item, i)).join('');
+      bindFaqRowEvents();
+    }
+    function bindFaqRowEvents() {
+      document.querySelectorAll('[data-remove-faq]').forEach(btn => btn.addEventListener('click', () => {
+        A.settings.faq = A.settings.faq.filter(f => f.id !== btn.dataset.removeFaq);
+        rerenderFaqList();
+      }));
+    }
+    bindFaqRowEvents();
+    document.getElementById('addFaqBtn').addEventListener('click', () => {
+      A.settings.faq.push({ id: uid('faq'), question: '', answer: '' });
+      rerenderFaqList();
+    });
+    document.getElementById('saveFaqBtn').addEventListener('click', async () => {
+      const rows = [...document.querySelectorAll('[data-faq-row]')];
+      A.settings.faq = rows.map(row => ({
+        id: row.dataset.faqRow,
+        question: row.querySelector('[data-faq-question]').value.trim(),
+        answer: row.nextElementSibling.querySelector('[data-faq-answer]').value.trim(),
+      })).filter(f => f.question); // remove perguntas deixadas em branco
+      persist('admin_settings', A.settings);
+      const sync = window.__brasaCatalogSync;
+      if (sync) {
+        const res = await sync.saveSettingsKey('faq_items', A.settings.faq);
+        if (!res.ok) { showToast('Salvo localmente, mas falhou ao gravar no banco: ' + (res.error && res.error.message || ''), 'error'); return; }
+      }
+      showToast('Perguntas frequentes atualizadas');
+      rerenderFaqList();
     });
 
     document.getElementById('newUserBtn').addEventListener('click', () => showToast('Convite enviado por e-mail (simulado)'));

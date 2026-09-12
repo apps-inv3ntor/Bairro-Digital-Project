@@ -322,6 +322,9 @@
           else if (row.key === 'notifications') Object.assign(A.settings, row.value);
           else if (row.key === 'pix_config') Object.assign(A.settings, row.value);
           else if (row.key === 'delivery_geo') A.settings.deliveryGeo = row.value;
+          else if (row.key === 'home_sections') A.settings.homeSections = row.value;
+          else if (row.key === 'promo_banner') A.settings.promoBanner = row.value;
+          else if (row.key === 'faq_items') A.settings.faq = row.value;
         });
         A.persist('admin_settings', A.settings);
       }
