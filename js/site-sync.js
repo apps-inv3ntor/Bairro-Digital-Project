@@ -12,6 +12,100 @@
 
   function formatBRL(v) { return (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
 
+  // Mesma lógica do admin (admin.js) pra transformar horário/pagamento configurado em frase —
+  // duplicada aqui de propósito: o site público e o admin são dois bundles JS separados.
+  function describeHours(hours) {
+    const order = ['seg', 'ter', 'qua', 'qui', 'sex', 'sab', 'dom'];
+    const names = { seg: 'segunda', ter: 'terça', qua: 'quarta', qui: 'quinta', sex: 'sexta', sab: 'sábado', dom: 'domingo' };
+    const fmt = t => (t || '').replace(':00', 'h').replace(':', 'h');
+    const openDays = order.filter(d => hours[d] && hours[d].open);
+    if (!openDays.length) return 'No momento estamos fechados.';
+    const groups = [];
+    let start = openDays[0];
+    for (let i = 1; i <= openDays.length; i++) {
+      const prev = openDays[i - 1], curr = openDays[i];
+      const sameSlot = curr && hours[curr].from === hours[prev].from && hours[curr].to === hours[prev].to;
+      if (!sameSlot) { groups.push({ from: start, to: prev, h: hours[prev] }); start = curr; }
+    }
+    const closedDays = order.filter(d => !(hours[d] && hours[d].open)).map(d => names[d]);
+    const parts = groups.map(g => {
+      const label = g.from === g.to ? names[g.from] : `${names[g.from]} a ${names[g.to]}`;
+      return `${label}, das ${fmt(g.h.from)} às ${fmt(g.h.to)}`;
+    });
+    let text = 'Funcionamos ' + parts.join('; ') + '.';
+    if (closedDays.length) text += ` ${closedDays.map(d => d[0].toUpperCase() + d.slice(1)).join(' e ')}-feira${closedDays.length > 1 ? 's' : ''} não abrimos.`;
+    return text;
+  }
+  function describePayments(payments) {
+    const labels = { pix: 'Pix', debito: 'cartão de débito', credito: 'cartão de crédito', dinheiro: 'dinheiro' };
+    const active = ['pix', 'debito', 'credito', 'dinheiro'].filter(k => payments[k]).map(k => labels[k]);
+    if (!active.length) return 'No momento não há formas de pagamento configuradas.';
+    return `Aceitamos ${active.join(', ').replace(/, ([^,]*)$/, ' e $1')}, pagos na entrega ou retirada.`;
+  }
+
+  // Reconstrói o menu de categorias no topo (Todos + Mais pedidos são fixos; o resto vem do banco)
+  function renderCategoryNav(cats) {
+    const scroll = document.getElementById('categoryScroll');
+    if (!scroll || !cats) return;
+    scroll.innerHTML = `
+      <button class="chip is-active" data-cat="todos">Todos</button>
+      <button class="chip" data-cat="mais-pedidos">Mais pedidos</button>
+      ${cats.map(c => `<button class="chip" data-cat="${c.id}">${(c.name || '').replace(/</g, '&lt;')}</button>`).join('')}`;
+  }
+
+  function renderPromoBanner(banner) {
+    const section = document.getElementById('promocoes');
+    if (!section) return;
+    if (!banner || banner.active === false) { section.style.display = 'none'; return; }
+    section.style.display = '';
+    const titleHtml = (banner.title || '').split('\n').map(l => l.replace(/</g, '&lt;')).join('<br>');
+    section.innerHTML = `
+      <div class="promo-banner__inner">
+        <div>
+          <span class="eyebrow">${(banner.eyebrow || '').replace(/</g, '&lt;')}</span>
+          <h2>${titleHtml}</h2>
+          <button type="button" class="btn btn-primary" id="promoBannerCta" style="margin-top:18px;">${(banner.buttonText || 'Ver oferta →').replace(/</g, '&lt;')}</button>
+        </div>
+        ${banner.couponCode ? `
+        <div class="promo-banner__coupon">
+          <span class="eyebrow">${(banner.couponLabel || 'Cupom').replace(/</g, '&lt;')}</span>
+          <strong>${banner.couponCode.replace(/</g, '&lt;')}</strong>
+        </div>` : ''}
+      </div>`;
+    document.getElementById('promoBannerCta').addEventListener('click', () => {
+      const target = banner.linkTarget || '#cardapio';
+      if (target.startsWith('#cat-') && typeof window.__brasaGoToCategory === 'function') {
+        window.__brasaGoToCategory(target.replace('#cat-', ''));
+      } else {
+        (document.querySelector(target) || document.getElementById('cardapio')).scrollIntoView({ behavior: 'smooth' });
+      }
+    });
+  }
+
+  function renderFaq(items) {
+    const list = document.getElementById('faqList');
+    if (!list || !Array.isArray(items)) return;
+    list.innerHTML = items.map(item => `
+      <div class="faq-item">
+        <button class="faq-question">${(item.question || '').replace(/</g, '&lt;')}<span class="faq-icon">+</span></button>
+        <div class="faq-answer"><p>${(item.answer || '').replace(/</g, '&lt;')}</p></div>
+      </div>`).join('');
+    // O toggle de abrir/fechar cada pergunta é feito por delegação de evento em main.js
+    // (ouve clique em .faq-question dentro de #faqList), então reconstruir o innerHTML
+    // aqui não quebra o comportamento — não precisa religar nada.
+  }
+
+  function renderFooter(storeInfo, hours, payments) {
+    const addrEl = document.getElementById('footerAddress');
+    const hoursEl = document.getElementById('footerHours');
+    const phoneEl = document.getElementById('footerPhone');
+    const payEl = document.getElementById('footerPayments');
+    if (storeInfo && addrEl) addrEl.innerHTML = `${(storeInfo.address || '').replace(/</g, '&lt;')}.`;
+    if (hours && hoursEl) hoursEl.textContent = describeHours(hours);
+    if (storeInfo && phoneEl) phoneEl.textContent = `WhatsApp ${storeInfo.phone || ''}`;
+    if (payments && payEl) payEl.textContent = describePayments(payments);
+  }
+
   async function loadCatalogFromSupabase() {
     try {
       const [{ data: cats, error: catsErr }, { data: prods, error: prodsErr }, { data: areas, error: areasErr },
@@ -106,18 +200,30 @@
         });
       }
 
-      // Pedido mínimo geral, se configurado
-      // Pedido mínimo e formas de pagamento habilitadas, se configurados
+      // Reconstrói o menu de categorias do topo com as categorias reais (resolve o problema de
+      // categorias novas — ex: "Promoções" — nunca aparecerem por o menu ser fixo no HTML)
+      if (cats && cats.length) renderCategoryNav(cats);
+
+      // Pedido mínimo geral e formas de pagamento habilitadas, se configurados
+      let hoursValue = null, paymentsValue = null, storeInfoValue = null;
       if (!settingsErr && settingsRows && settingsRows.length) {
         const storeInfoRow = settingsRows.find(r => r.key === 'store_info');
-        if (storeInfoRow && storeInfoRow.value && storeInfoRow.value.minOrder) {
-          MIN_ORDER = Number(storeInfoRow.value.minOrder);
+        if (storeInfoRow && storeInfoRow.value) {
+          storeInfoValue = storeInfoRow.value;
+          if (storeInfoRow.value.minOrder) MIN_ORDER = Number(storeInfoRow.value.minOrder);
         }
         const paymentsRow = settingsRows.find(r => r.key === 'payments_enabled');
-        if (paymentsRow && paymentsRow.value) {
-          window.PAYMENTS_ENABLED = paymentsRow.value;
-        }
+        if (paymentsRow && paymentsRow.value) { paymentsValue = paymentsRow.value; window.PAYMENTS_ENABLED = paymentsRow.value; }
+        const hoursRow = settingsRows.find(r => r.key === 'hours');
+        if (hoursRow && hoursRow.value) hoursValue = hoursRow.value;
+        const homeSectionsRow = settingsRows.find(r => r.key === 'home_sections');
+        if (homeSectionsRow && homeSectionsRow.value) window.HOME_SECTIONS = homeSectionsRow.value;
+        const bannerRow = settingsRows.find(r => r.key === 'promo_banner');
+        if (bannerRow && bannerRow.value) { window.PROMO_BANNER = bannerRow.value; renderPromoBanner(bannerRow.value); }
+        const faqRow = settingsRows.find(r => r.key === 'faq_items');
+        if (faqRow && Array.isArray(faqRow.value)) { window.FAQ_ITEMS = faqRow.value; renderFaq(faqRow.value); }
       }
+      renderFooter(storeInfoValue, hoursValue, paymentsValue);
 
       if (typeof window.__brasaRefreshMenu === 'function') window.__brasaRefreshMenu();
       if (typeof window.__brasaRefreshCart === 'function') window.__brasaRefreshCart();

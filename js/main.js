@@ -12,7 +12,7 @@
   let currentSelections = {};
   let currentQty = 1;
   let checkoutStep = 1;
-  let checkoutData = loadJSON('brasa_checkout_draft', { nome: '', telefone: '', email: '', modo: 'entrega', area: 'centro', bairro: '', cep: '', endereco: '', referencia: '', pagamento: 'pix', troco: '', areaValidated: false, deliveryFeeOverride: null });
+  let checkoutData = loadJSON('brasa_checkout_draft', { nome: '', telefone: '', email: '', modo: 'entrega', area: 'centro', bairro: '', cep: '', endereco: '', referencia: '', pagamento: 'pix', troco: '', areaValidated: false, deliveryFeeOverride: null, idempotencyKey: null });
   let lastOrder = loadJSON('brasa_last_order', null);
   let authUser = loadJSON('brasa_auth', null); // {name, email} ou null
   let quickAccessTab = 'entrar';
@@ -89,14 +89,19 @@
     let html = '';
 
     if (activeCategory === 'todos') {
-      // Home: exatamente 3 seções, cada uma em carrossel (item 3 e 4 do briefing)
+      // Home: "Mais pedidos" é fixo (produtos em destaque). As outras duas faixas são
+      // configuráveis pelo admin em Configurações → Página inicial (título + categorias).
       const highlights = PRODUCTS.filter(p => p.highlight);
-      const hamburgueres = PRODUCTS.filter(p => p.category === 'hamburgueres');
-      const acompanhamentos = PRODUCTS.filter(p => ['combos', 'porcoes', 'bebidas', 'sobremesas'].includes(p.category));
+      const homeSections = window.HOME_SECTIONS || {
+        section2: { title: 'Hambúrgueres', categoryIds: ['hamburgueres'] },
+        section3: { title: 'Combos & Acompanhamentos', categoryIds: ['combos', 'porcoes', 'bebidas', 'sobremesas'] },
+      };
+      const section2Items = PRODUCTS.filter(p => homeSections.section2.categoryIds.includes(p.category));
+      const section3Items = PRODUCTS.filter(p => homeSections.section3.categoryIds.includes(p.category));
 
       html += carouselSection('mais-pedidos', 'Mais pedidos', highlights);
-      html += carouselSection('hamburgueres', 'Hambúrgueres', hamburgueres);
-      html += carouselSection('combos-acompanhamentos', 'Combos & Acompanhamentos', acompanhamentos);
+      html += carouselSection('home-secao-2', homeSections.section2.title, section2Items);
+      html += carouselSection('home-secao-3', homeSections.section3.title, section3Items);
     } else if (activeCategory === 'mais-pedidos') {
       html += gridSection('mais-pedidos', 'Mais pedidos', PRODUCTS.filter(p => p.highlight));
     } else {
@@ -823,7 +828,11 @@
     document.getElementById(errId).classList.toggle('is-visible', hasError);
   }
 
+  let orderSubmitInFlight = false; // trava simples: ignora clique duplo enquanto o pedido anterior ainda está sendo enviado
+
   async function submitOrder() {
+    if (orderSubmitInFlight) return; // duplo clique / clique repetido enquanto já está processando
+    orderSubmitInFlight = true;
     const confirmBtn = document.getElementById('confirmOrderBtn');
     const subtotal = cartSubtotal();
     const discount = discountAmount(subtotal);
@@ -853,10 +862,20 @@
       showToast('Pedido confirmado! Acompanhe abaixo.');
       trackFoundOrder = true;
       setTimeout(() => openTrackModal(), 260);
+      orderSubmitInFlight = false;
       return;
     }
 
     if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.textContent = 'Processando...'; }
+
+    // Chave de idempotência: gerada uma vez por tentativa de checkout e reaproveitada em
+    // reenvios (falha de rede, duplo clique) — assim o backend reconhece que é a MESMA
+    // tentativa e devolve o pedido já criado em vez de duplicar. É limpa depois que o
+    // pedido é confirmado com sucesso, pra próxima compra gerar uma chave nova.
+    if (!checkoutData.idempotencyKey) {
+      checkoutData.idempotencyKey = crypto.randomUUID();
+      persistCheckoutDraft();
+    }
 
     const payload = {
       items: cart.map(l => ({
@@ -871,6 +890,7 @@
       deliveryAreaId: checkoutData.modo === 'entrega' ? checkoutData.area : null,
       customer: { name: checkoutData.nome, email: checkoutData.email, phone: checkoutData.telefone },
       address: checkoutData.modo === 'entrega' ? { street: checkoutData.endereco, reference: checkoutData.referencia } : undefined,
+      idempotencyKey: checkoutData.idempotencyKey,
     };
 
     try {
@@ -900,6 +920,8 @@
       persistCart();
       saveJSON('brasa_coupon', null);
       renderCart();
+      checkoutData.idempotencyKey = null; // pedido concluído — próxima compra usa uma chave nova
+      persistCheckoutDraft();
 
       if (checkoutData.pagamento === 'pix') {
         openPixPaymentModal(data);
@@ -918,6 +940,7 @@
       showToast('Erro de conexão ao gerar o pagamento. Tente novamente.', 'error');
     } finally {
       if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = 'Confirmar pedido'; }
+      orderSubmitInFlight = false;
     }
   }
 
@@ -992,28 +1015,64 @@
       el.innerHTML = `
         <span class="quick-access__eyebrow">Acompanhamento</span>
         <h2 style="text-transform:none; letter-spacing:0; margin:4px 0 8px;">Acompanhar pedido</h2>
-        <p style="color:var(--lm-text-2); font-size:0.88rem; margin-bottom:18px;">Informe apenas o e-mail usado na compra.</p>
+        <p style="color:var(--lm-text-2); font-size:0.88rem; margin-bottom:18px;">Informe o e-mail e o número do pedido usados na compra.</p>
         <div class="field">
           <label for="trackEmailInput">E-mail</label>
           <input type="email" id="trackEmailInput" placeholder="voce@email.com">
-          <div class="field-error-msg" id="trackEmailErr">Não encontramos pedidos para esse e-mail nesta sessão.</div>
+        </div>
+        <div class="field">
+          <label for="trackOrderNumberInput">Número do pedido</label>
+          <input type="text" id="trackOrderNumberInput" placeholder="#1000">
+          <div class="field-error-msg" id="trackEmailErr">Não encontramos esse pedido com esse e-mail.</div>
         </div>
         <button class="btn btn-primary" id="trackSubmitBtn" style="width:100%; justify-content:center; margin-top:6px;">Consultar pedido →</button>`;
-      document.getElementById('trackSubmitBtn').addEventListener('click', () => {
+      document.getElementById('trackSubmitBtn').addEventListener('click', async () => {
         const email = document.getElementById('trackEmailInput').value.trim().toLowerCase();
-        if (!email.includes('@')) {
-          toggleFieldError('trackEmailInput', 'trackEmailErr', true);
-          document.getElementById('trackEmailErr').textContent = 'Digite um e-mail válido.';
+        let orderNumber = document.getElementById('trackOrderNumberInput').value.trim();
+        if (orderNumber && !orderNumber.startsWith('#')) orderNumber = '#' + orderNumber;
+        if (!email.includes('@') || !orderNumber) {
+          toggleFieldError('trackOrderNumberInput', 'trackEmailErr', true);
+          document.getElementById('trackEmailErr').textContent = 'Preencha e-mail e número do pedido.';
           return;
         }
-        const orderEmail = lastOrder && lastOrder.customer ? (lastOrder.customer.email || '').toLowerCase() : '';
-        if (lastOrder && orderEmail === email) {
+
+        // Se for o pedido que acabou de ser feito nesta mesma sessão, não precisa nem
+        // consultar o banco — já temos tudo aqui (funciona até sem internet/Supabase).
+        const localEmail = lastOrder && lastOrder.customer ? (lastOrder.customer.email || '').toLowerCase() : '';
+        if (lastOrder && localEmail === email && String(lastOrder.code) === orderNumber) {
           trackFoundOrder = true;
           renderTrackModal();
-        } else {
-          toggleFieldError('trackEmailInput', 'trackEmailErr', true);
-          document.getElementById('trackEmailErr').textContent = 'Não encontramos pedidos para esse e-mail nesta sessão.';
+          return;
         }
+
+        if (!window.sb) {
+          toggleFieldError('trackOrderNumberInput', 'trackEmailErr', true);
+          document.getElementById('trackEmailErr').textContent = 'Não encontramos esse pedido nesta sessão.';
+          return;
+        }
+
+        const submitBtn = document.getElementById('trackSubmitBtn');
+        submitBtn.disabled = true; submitBtn.textContent = 'Consultando...';
+        const { data: rows, error } = await window.sb.rpc('get_order_status', { p_email: email, p_order_number: orderNumber });
+        submitBtn.disabled = false; submitBtn.textContent = 'Consultar pedido →';
+
+        const row = rows && rows[0];
+        if (error || !row) {
+          toggleFieldError('trackOrderNumberInput', 'trackEmailErr', true);
+          document.getElementById('trackEmailErr').textContent = error && error.message && error.message.includes('tentativas')
+            ? error.message
+            : 'Não encontramos esse pedido com esse e-mail.';
+          return;
+        }
+        lastOrder = {
+          code: row.order_number, total: Number(row.total), createdAt: new Date(row.created_at).getTime(),
+          status: mapOrderStatusToStage(row.order_status, row.payment_status),
+          items: [], itemCount: Number(row.item_count) || 0,
+          customer: { email }, _real: true, // _real: veio do banco de verdade, não é pedido local/demo
+        };
+        saveJSON('brasa_last_order', lastOrder);
+        trackFoundOrder = true;
+        renderTrackModal();
       });
       return;
     }
@@ -1023,12 +1082,24 @@
         <p style="color:var(--lm-text-2); font-size:0.9rem;">Você ainda não fez nenhum pedido nesta sessão.</p>`;
       return;
     }
+    if (lastOrder.status === 'cancelado') {
+      el.innerHTML = `
+        <div class="track-success">
+          <div class="check-circle" style="background:var(--danger,#e5484d);">✕</div>
+          <h2 style="text-transform:none; letter-spacing:0;">Pedido ${lastOrder.code} cancelado</h2>
+          <p style="color:var(--text-secondary); font-size:0.88rem;">Esse pedido foi cancelado. Qualquer dúvida, fale com a gente pelo WhatsApp.</p>
+        </div>
+        <button class="btn btn-secondary" id="closeTrackBtn" style="width:100%; justify-content:center; margin-top:8px;">Fechar</button>`;
+      document.getElementById('closeTrackBtn').addEventListener('click', closeAllOverlays);
+      return;
+    }
     const currentIdx = ORDER_STAGES.findIndex(s => s.id === lastOrder.status);
+    const itemCount = lastOrder.itemCount !== undefined ? lastOrder.itemCount : lastOrder.items.reduce((s, i) => s + i.qty, 0);
     el.innerHTML = `
       <div class="track-success">
         <div class="check-circle">🔥</div>
         <h2 style="text-transform:none; letter-spacing:0;">Pedido ${lastOrder.code} confirmado</h2>
-        <p style="color:var(--text-secondary); font-size:0.88rem;">${formatBRL(lastOrder.total)} · ${lastOrder.items.reduce((s, i) => s + i.qty, 0)} itens</p>
+        <p style="color:var(--text-secondary); font-size:0.88rem;">${formatBRL(lastOrder.total)} · ${itemCount} itens</p>
       </div>
       <div class="timeline">
         ${ORDER_STAGES.map((s, i) => `
@@ -1043,11 +1114,42 @@
       <button class="btn btn-secondary" id="closeTrackBtn" style="width:100%; justify-content:center; margin-top:8px;">Fechar</button>`;
     document.getElementById('closeTrackBtn').addEventListener('click', closeAllOverlays);
 
-    // Simulação demonstrativa de progresso do pedido
-    if (currentIdx < ORDER_STAGES.length - 1 && !lastOrder._simRunning) {
+    if (lastOrder._real) {
+      // Pedido de verdade: consulta o status real no banco de tempos em tempos
+      // (reflete o que a loja atualiza no admin), nunca "finge" progresso.
+      if (currentIdx < ORDER_STAGES.length - 1) startTrackPolling(lastOrder.code, lastOrder.customer.email);
+    } else if (currentIdx < ORDER_STAGES.length - 1 && !lastOrder._simRunning) {
+      // Modo demonstração (sem Supabase conectado) — avança sozinho só pra fins de apresentação.
       lastOrder._simRunning = true;
       simulateProgress();
     }
+  }
+
+  let trackPollTimer = null;
+  function startTrackPolling(orderNumber, email) {
+    if (trackPollTimer) clearInterval(trackPollTimer);
+    trackPollTimer = setInterval(async () => {
+      if (!window.sb || !document.getElementById('trackModal').classList.contains('is-open')) {
+        clearInterval(trackPollTimer); trackPollTimer = null; return;
+      }
+      const { data: rows } = await window.sb.rpc('get_order_status', { p_email: email, p_order_number: String(orderNumber) });
+      const row = rows && rows[0];
+      if (!row) return;
+      const newStatus = mapOrderStatusToStage(row.order_status, row.payment_status);
+      if (newStatus !== lastOrder.status) {
+        lastOrder.status = newStatus;
+        saveJSON('brasa_last_order', lastOrder);
+        renderTrackModal();
+      }
+      const idx = ORDER_STAGES.findIndex(s => s.id === newStatus);
+      if (idx >= ORDER_STAGES.length - 1) { clearInterval(trackPollTimer); trackPollTimer = null; }
+    }, 10000);
+  }
+
+  function mapOrderStatusToStage(orderStatus, paymentStatus) {
+    if (orderStatus === 'cancelado') return 'cancelado';
+    const map = { novo: 'recebido', confirmado: 'confirmado', preparo: 'preparo', entrega: 'saiu', concluido: 'entregue' };
+    return map[orderStatus] || 'recebido';
   }
 
   function simulateProgress() {
@@ -1262,4 +1364,11 @@
   // desenho acima usa os dados de exemplo e este é chamado de novo em seguida).
   window.__brasaRefreshMenu = renderMenu;
   window.__brasaRefreshCart = renderCart;
+  // Usado pelo banner de oferta customizável (site-sync.js) pra poder linkar pra uma
+  // categoria específica em vez de só rolar a tela até o topo do cardápio.
+  window.__brasaGoToCategory = function (categoryId) {
+    const chip = document.querySelector(`.chip[data-cat="${categoryId}"]`);
+    if (chip) chip.click();
+    document.getElementById('cardapio').scrollIntoView({ behavior: 'smooth' });
+  };
 })();
