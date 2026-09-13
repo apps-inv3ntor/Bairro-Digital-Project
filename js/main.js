@@ -1269,6 +1269,10 @@
     chip.classList.add('is-active');
     activeCategory = chip.dataset.cat;
     renderMenu();
+    // Rola até o cardápio depois de trocar de categoria — sem isso, se a pessoa
+    // estiver longe dessa seção (ex: lendo o FAQ), o conteúdo troca fora da tela
+    // e parece que o botão não fez nada.
+    document.getElementById('cardapio').scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
 
   /* ============================================================
