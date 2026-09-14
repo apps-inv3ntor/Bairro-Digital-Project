@@ -39,67 +39,13 @@
   let orders = loadJSON('admin_orders', ADMIN_ORDERS);
   let adminUsers = loadJSON('admin_admin_users', []);
   let insumos = loadJSON('admin_insumos', []);
-  const DEFAULT_HOURS = { seg: { open: false }, ter: { open: true, from: '18:00', to: '23:30' }, qua: { open: true, from: '18:00', to: '23:30' }, qui: { open: true, from: '18:00', to: '23:30' }, sex: { open: true, from: '18:00', to: '23:30' }, sab: { open: true, from: '18:00', to: '23:30' }, dom: { open: true, from: '18:00', to: '23:00' } };
-  const DEFAULT_PAYMENTS = { pix: true, debito: true, credito: true, dinheiro: true };
-
-  function describeHours(hours) {
-    // Agrupa dias com o mesmo horário numa frase só (ex: "terça a sábado, 18h às 23h30. Domingo, 18h às 23h")
-    const order = ['seg', 'ter', 'qua', 'qui', 'sex', 'sab', 'dom'];
-    const names = { seg: 'segunda', ter: 'terça', qua: 'quarta', qui: 'quinta', sex: 'sexta', sab: 'sábado', dom: 'domingo' };
-    const fmt = t => (t || '').replace(':00', 'h').replace(':', 'h');
-    const openDays = order.filter(d => hours[d] && hours[d].open);
-    if (!openDays.length) return 'No momento estamos fechados.';
-    const groups = [];
-    let start = openDays[0];
-    for (let i = 1; i <= openDays.length; i++) {
-      const prev = openDays[i - 1], curr = openDays[i];
-      const sameSlot = curr && hours[curr].from === hours[prev].from && hours[curr].to === hours[prev].to;
-      if (!sameSlot) { groups.push({ from: start, to: prev, h: hours[prev] }); start = curr; }
-    }
-    const closedDays = order.filter(d => !(hours[d] && hours[d].open)).map(d => names[d]);
-    const parts = groups.map(g => {
-      const label = g.from === g.to ? names[g.from] : `${names[g.from]} a ${names[g.to]}`;
-      return `${label}, das ${fmt(g.h.from)} às ${fmt(g.h.to)}`;
-    });
-    let text = 'Funcionamos ' + parts.join('; ') + '.';
-    if (closedDays.length) text += ` ${closedDays.map(d => d[0].toUpperCase() + d.slice(1)).join(' e ')}-feira${closedDays.length > 1 ? 's' : ''} não abrimos.`;
-    return text;
-  }
-  function describePayments(payments) {
-    const labels = { pix: 'Pix', debito: 'cartão de débito', credito: 'cartão de crédito', dinheiro: 'dinheiro' };
-    const active = ['pix', 'debito', 'credito', 'dinheiro'].filter(k => payments[k]).map(k => labels[k]);
-    if (!active.length) return 'No momento não há formas de pagamento configuradas.';
-    return `Aceitamos ${active.join(', ').replace(/, ([^,]*)$/, ' e $1')}, pagos na entrega ou retirada.`;
-  }
-
   let settings = loadJSON('admin_settings', {
     storeName: 'Brasa Burger Co.', phone: '(11) 99999-2026', address: 'Rua das Brasas, 147 — Centro',
     instagram: '@brasaburgerco', minOrder: 20,
-    hours: DEFAULT_HOURS,
-    payments: DEFAULT_PAYMENTS,
+    hours: { seg: { open: false }, ter: { open: true, from: '18:00', to: '23:30' }, qua: { open: true, from: '18:00', to: '23:30' }, qui: { open: true, from: '18:00', to: '23:30' }, sex: { open: true, from: '18:00', to: '23:30' }, sab: { open: true, from: '18:00', to: '23:30' }, dom: { open: true, from: '18:00', to: '23:00' } },
+    payments: { pix: true, debito: true, credito: true, dinheiro: true },
     pixKey: '', pixRecipient: '',
     notifyNewOrder: true, notifySound: true, notifyLowStock: true,
-    // Faixas 2 e 3 da home (a faixa 1, "Mais pedidos", não é configurável — sempre são os produtos em destaque)
-    homeSections: {
-      section2: { title: 'Hambúrgueres', categoryIds: ['hamburgueres'] },
-      section3: { title: 'Combos & Acompanhamentos', categoryIds: ['combos', 'porcoes', 'bebidas', 'sobremesas'] },
-    },
-    // Banner "Oferta da Brasa" (o hero de promoção logo abaixo do cardápio)
-    promoBanner: {
-      active: true, eyebrow: 'Oferta da brasa', title: '2 burgers.\n1 noite memorável.',
-      buttonText: 'Ver oferta →', linkTarget: '#cardapio', couponLabel: 'Cupom', couponCode: 'QUARTA',
-    },
-    // Perguntas frequentes editáveis — as duas primeiras já nascem com o texto certo, calculado a
-    // partir do horário/pagamento configurado (mas depois de salvas, o texto é livre pra editar,
-    // não fica "amarrado" magicamente às outras telas — evita comportamento surpreendente).
-    faq: [
-      { id: 'f1', question: 'Qual é o horário de funcionamento?', answer: describeHours(DEFAULT_HOURS) },
-      { id: 'f2', question: 'Quais são as formas de pagamento?', answer: describePayments(DEFAULT_PAYMENTS) },
-      { id: 'f3', question: 'Qual é a taxa de entrega?', answer: 'Varia por bairro — confira a lista completa na área de entrega, na página inicial.' },
-      { id: 'f4', question: 'Quanto tempo demora?', answer: 'Em média de 30 a 45 minutos para entrega, e cerca de 20 minutos para retirada no balcão.' },
-      { id: 'f5', question: 'Como acompanhar o pedido?', answer: 'Use o link "Acompanhar pedido" no topo do site com o e-mail e o número do pedido para ver o status em tempo real.' },
-      { id: 'f6', question: 'Posso retirar no local?', answer: 'Pode sim! Escolha "Retirada" no checkout — seu pedido fica pronto no balcão, sem taxa de entrega.' },
-    ],
   });
   let currentView = 'visao-geral';
   let currentDrawerOrder = null;
@@ -525,7 +471,6 @@
     get adminUsers() { return adminUsers; }, set adminUsers(v) { adminUsers = v; },
     get insumos() { return insumos; }, set insumos(v) { insumos = v; },
     get settings() { return settings; }, set settings(v) { settings = v; },
-    describeHours, describePayments,
     findProduct, findCategory, CATEGORY_NAME,
     get currentView() { return currentView; },
     VIEW_RENDERERS, goToView, closeAllOverlays, openBackdrop, updateOrdersBadge,

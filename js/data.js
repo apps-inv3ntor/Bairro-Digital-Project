@@ -201,26 +201,3 @@ const COUPONS = {
 let MIN_ORDER = 20;
 window.PAYMENTS_ENABLED = { pix: true, debito: true, credito: true, dinheiro: true };
 const STORE_WHATSAPP = '5511999992026';
-
-// Faixas 2 e 3 da home (customizável pelo admin em Configurações → Página inicial).
-// A faixa 1 ("Mais pedidos") nunca muda — são sempre os produtos com destaque.
-window.HOME_SECTIONS = {
-  section2: { title: 'Hambúrgueres', categoryIds: ['hamburgueres'] },
-  section3: { title: 'Combos & Acompanhamentos', categoryIds: ['combos', 'porcoes', 'bebidas', 'sobremesas'] },
-};
-
-// Banner "Oferta da Brasa" (customizável pelo admin em Configurações → Banner de oferta)
-window.PROMO_BANNER = {
-  active: true, eyebrow: 'Oferta da brasa', title: '2 burgers.\n1 noite memorável.',
-  buttonText: 'Ver oferta →', linkTarget: '#cardapio', couponLabel: 'Cupom', couponCode: 'QUARTA',
-};
-
-// FAQ (customizável pelo admin em Configurações → Perguntas frequentes)
-window.FAQ_ITEMS = [
-  { id: 'f1', question: 'Qual é o horário de funcionamento?', answer: 'Funcionamos de terça a domingo, das 18h às 23h30. Segundas-feiras não abrimos.' },
-  { id: 'f2', question: 'Quais são as formas de pagamento?', answer: 'Aceitamos Pix, cartão de débito, cartão de crédito e dinheiro, pagos na entrega ou retirada.' },
-  { id: 'f3', question: 'Qual é a taxa de entrega?', answer: 'Varia por bairro: Centro R$ 6,90, Jardins R$ 8,90 e Vila Nova R$ 5,90. Retirada no balcão é gratuita.' },
-  { id: 'f4', question: 'Quanto tempo demora?', answer: 'Em média de 30 a 45 minutos para entrega, e cerca de 20 minutos para retirada no balcão.' },
-  { id: 'f5', question: 'Como acompanhar o pedido?', answer: 'Use o link "Acompanhar pedido" no topo do site com o e-mail e o número do pedido para ver o status em tempo real.' },
-  { id: 'f6', question: 'Posso retirar no local?', answer: 'Pode sim! Escolha "Retirada" no checkout — seu pedido fica pronto no balcão em até 30 minutos, sem taxa de entrega.' },
-];

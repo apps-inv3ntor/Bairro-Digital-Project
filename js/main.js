@@ -1269,10 +1269,6 @@
     chip.classList.add('is-active');
     activeCategory = chip.dataset.cat;
     renderMenu();
-    // Rola até o cardápio depois de trocar de categoria — sem isso, se a pessoa
-    // estiver longe dessa seção (ex: lendo o FAQ), o conteúdo troca fora da tela
-    // e parece que o botão não fez nada.
-    document.getElementById('cardapio').scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
 
   /* ============================================================
@@ -1332,27 +1328,23 @@
   /* ============================================================
      FAQ (acordeão)
      ============================================================ */
-  // Delegação de evento: um único listener no container inteiro, em vez de um
-  // listener por pergunta. Assim continua funcionando mesmo quando o site-sync
-  // substitui o conteúdo do FAQ (config vinda do admin) depois do carregamento
-  // inicial — um listener preso a elementos específicos morreria junto com eles.
   function initFaq() {
     const list = document.getElementById('faqList');
     if (!list) return;
-    list.addEventListener('click', (e) => {
-      const question = e.target.closest('.faq-question');
-      if (!question) return;
-      const item = question.closest('.faq-item');
+    list.querySelectorAll('.faq-item').forEach(item => {
+      const question = item.querySelector('.faq-question');
       const answer = item.querySelector('.faq-answer');
-      const isOpen = item.classList.contains('is-open');
-      list.querySelectorAll('.faq-item.is-open').forEach(open => {
-        if (open !== item) {
-          open.classList.remove('is-open');
-          open.querySelector('.faq-answer').style.maxHeight = '';
-        }
+      question.addEventListener('click', () => {
+        const isOpen = item.classList.contains('is-open');
+        list.querySelectorAll('.faq-item.is-open').forEach(open => {
+          if (open !== item) {
+            open.classList.remove('is-open');
+            open.querySelector('.faq-answer').style.maxHeight = '';
+          }
+        });
+        item.classList.toggle('is-open', !isOpen);
+        answer.style.maxHeight = !isOpen ? answer.scrollHeight + 'px' : '';
       });
-      item.classList.toggle('is-open', !isOpen);
-      answer.style.maxHeight = !isOpen ? answer.scrollHeight + 'px' : '';
     });
   }
   initFaq();
