@@ -44,12 +44,13 @@
 <!-- ============================= HERO ============================= -->
 <section class="hero" id="inicio">
   <div class="hero__bg">
-    <img src="assets/brand/hero-burger.jpg" alt="Hambúrguer duplo Brasa Burger com bacon e queijo derretido">
+    <img src="assets/brand/hero-burger.jpg" alt="Hambúrguer duplo Brasa Burger com bacon e queijo derretido" id="heroBgImg">
+    <video id="heroBgVideo" muted loop playsinline autoplay style="display:none;"></video>
     <div class="hero__scrim"></div>
   </div>
   <div class="embers" id="embers"></div>
   <div class="hero__content">
-    <div class="hero__coupon">Use o cupom <strong>BRASA15</strong> e ganhe 15% OFF</div>
+    <a class="hero__coupon" id="heroCoupon" href="#cardapio">Use o cupom <strong>BRASA15</strong> e ganhe 15% OFF</a>
     <h1>O burger que <br><em>acende a noite.</em></h1>
     <p>Hambúrgueres artesanais grelhados na brasa, montados na hora — do Centro, Jardins e Vila Nova direto pra sua casa.</p>
     <div class="hero__ctas">
@@ -59,10 +60,7 @@
   </div>
 </section>
 
-<!-- ============================= BANNERS PROMOCIONAIS (do admin) ============================= -->
-<section class="container" id="bannersStrip" style="display:none; margin: 28px auto;">
-  <div id="bannersStripInner" style="display:flex; gap:16px; overflow-x:auto; scroll-snap-type:x mandatory; padding-bottom:4px;"></div>
-</section>
+
 
 <!-- ============================= CATEGORIAS ============================= -->
 <nav class="categories" aria-label="Categorias do cardápio">
@@ -170,13 +168,13 @@
   <div class="container footer-grid">
     <div>
       <h4>Brasa Burger Co.</h4>
-      <p>Rua das Brasas, 147 — Centro.<br>Entregamos em Centro, Jardins e Vila Nova.</p>
-      <p>Terça a domingo, 18h às 23h30.</p>
+      <p id="footerAddress">Rua das Brasas, 147 — Centro.<br>Entregamos em Centro, Jardins e Vila Nova.</p>
+      <p id="footerHours">Terça a domingo, 18h às 23h30.</p>
     </div>
     <div>
       <h4>Atendimento</h4>
-      <p>WhatsApp (11) 99999-2026</p>
-      <p>Pagamento: dinheiro, Pix, débito ou crédito na entrega/retirada.</p>
+      <p id="footerPhone">WhatsApp (11) 99999-2026</p>
+      <p id="footerPayments">Pagamento: dinheiro, Pix, débito ou crédito na entrega/retirada.</p>
     </div>
     <div>
       <h4>Entrega</h4>
