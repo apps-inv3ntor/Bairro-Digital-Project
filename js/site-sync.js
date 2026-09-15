@@ -122,45 +122,21 @@
         return;
       }
 
-      // Banner principal (topo do site) — carrossel automático entre todos os banners
-      // ativos e dentro do período. O cliente decidiu não usar mais a faixa pequena:
-      // agora só existe o banner grande, girando entre os cadastrados.
-      if (!bannersErr && banners) {
-        const today = new Date().toISOString().slice(0, 10);
-        const displayable = banners.filter(b =>
-          (!b.start_date || today >= b.start_date) && (!b.end_date || today <= b.end_date)
-        ); // já vem ordenado por prioridade (query .order('priority'))
-
-        const heroImg = document.getElementById('heroBgImg');
-        const heroVideo = document.getElementById('heroBgVideo');
-        const heroCoupon = document.getElementById('heroCoupon');
-
-        if (displayable.length && heroImg && heroVideo && heroCoupon) {
-          if (window.__brasaHeroRotationTimer) clearTimeout(window.__brasaHeroRotationTimer);
-
-          const showBanner = (index) => {
-            const b = displayable[index];
-            heroCoupon.textContent = b.title || '';
-            heroCoupon.href = b.link || '#cardapio';
-            if (b.media_type === 'video') {
-              heroImg.style.display = 'none';
-              heroVideo.style.display = 'block';
-              if (heroVideo.getAttribute('src') !== b.image_url) heroVideo.setAttribute('src', b.image_url || '');
-              heroVideo.play().catch(() => {}); // navegador pode bloquear autoplay com som; o vídeo é sempre mudo (muted), então normalmente toca
-            } else {
-              heroVideo.pause();
-              heroVideo.style.display = 'none';
-              heroImg.style.display = 'block';
-              heroImg.src = b.image_url || 'assets/brand/hero-burger.jpg';
-            }
-            if (displayable.length > 1) {
-              const seconds = b.display_seconds > 0 ? b.display_seconds : 8;
-              window.__brasaHeroRotationTimer = setTimeout(() => showBanner((index + 1) % displayable.length), seconds * 1000);
-            }
-          };
-          showBanner(0);
+      // Banners promocionais (independente do resto — mostra mesmo se cardápio ainda estiver de exemplo)
+      if (!bannersErr && banners && banners.length) {
+        const strip = document.getElementById('bannersStrip');
+        const inner = document.getElementById('bannersStripInner');
+        if (strip && inner) {
+          inner.innerHTML = banners.map(b => `
+            <a href="${b.link || '#cardapio'}" style="flex:0 0 auto; width:min(420px,85vw); scroll-snap-align:start; position:relative; display:block; border-radius:16px; overflow:hidden; text-decoration:none;">
+              <img src="${b.image_url || 'assets/brand/hero-burger.jpg'}" alt="${(b.title || '').replace(/"/g, '&quot;')}" style="width:100%; height:180px; object-fit:cover; display:block;">
+              <div style="position:absolute; inset:0; background:linear-gradient(180deg, transparent 40%, rgba(0,0,0,.75) 100%); display:flex; flex-direction:column; justify-content:flex-end; padding:14px;">
+                ${b.period_label ? `<span style="color:var(--primary,#f4790a); font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em;">${b.period_label}</span>` : ''}
+                <strong style="color:#fff; font-size:1.05rem; line-height:1.25;">${(b.title || '').replace(/</g, '&lt;')}</strong>
+              </div>
+            </a>`).join('');
+          strip.style.display = 'block';
         }
-        // Sem nenhum banner dentro do período: mantém a imagem/texto padrão do site (não mexe em nada).
       }
       if (!prods || !prods.length) {
         console.warn('Supabase conectado mas sem produtos cadastrados ainda — mantendo dados de exemplo.');

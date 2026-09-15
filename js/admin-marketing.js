@@ -276,22 +276,6 @@
     renderBannersGrid();
   };
 
-  function bannerDisplayStatus(b) {
-    if (!b.active) return { label: 'Inativo', cls: 'pill-gray' };
-    const today = new Date().toISOString().slice(0, 10);
-    if (b.startDate && today < b.startDate) return { label: 'Agendado', cls: 'pill-orange' };
-    if (b.endDate && today > b.endDate) return { label: 'Expirado', cls: 'pill-gray' };
-    return { label: 'Ativo', cls: 'pill-green' };
-  }
-  function formatBannerPeriod(b) {
-    const fmt = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('pt-BR') : null;
-    const start = fmt(b.startDate), end = fmt(b.endDate);
-    if (start && end) return `${start} a ${end}`;
-    if (start) return `A partir de ${start}`;
-    if (end) return `Até ${end}`;
-    return 'Sem data definida';
-  }
-
   function renderBannersGrid() {
     const grid = document.getElementById('bannersGrid');
     if (!grid) return;
@@ -300,22 +284,19 @@
       return;
     }
     const sorted = [...A.banners].sort((a, b) => a.priority - b.priority);
-    grid.innerHTML = sorted.map(b => {
-      const status = bannerDisplayStatus(b);
-      return `
+    grid.innerHTML = sorted.map(b => `
       <div class="card product-admin-card" data-banner="${b.id}">
         <div class="pac-img ${!b.active ? 'is-inactive' : ''}"><img src="${b.img}" alt=""></div>
         <div class="pac-body">
           <h4 style="font-size:0.95rem;">${escapeHtml(b.title)}</h4>
-          <div class="cat">${formatBannerPeriod(b)} · prioridade ${b.priority}</div>
-          <div class="pac-foot"><span class="pill ${status.cls}">${status.label}</span></div>
+          <div class="cat">${b.period} · prioridade ${b.priority}</div>
+          <div class="pac-foot"><span class="pill ${b.active ? 'pill-green' : 'pill-gray'}">${b.active ? 'Ativo' : 'Inativo'}</span></div>
           <div class="pac-actions">
             <button class="btn btn-secondary" data-edit-banner="${b.id}" style="flex:1; justify-content:center;">Editar</button>
             <button class="icon-only-btn" data-del-banner="${b.id}" title="Excluir">🗑️</button>
           </div>
         </div>
-      </div>`;
-    }).join('');
+      </div>`).join('');
 
     grid.querySelectorAll('[data-edit-banner]').forEach(btn => btn.addEventListener('click', () => openBannerModal(btn.dataset.editBanner)));
     grid.querySelectorAll('[data-del-banner]').forEach(btn => btn.addEventListener('click', () => {
@@ -341,36 +322,17 @@
     A.editingBannerId = bannerId;
     const b = bannerId ? A.banners.find(x => x.id === bannerId) : null;
     let uploadedImg = b ? b.img : null;
-    let mediaType = b ? b.mediaType : 'image';
-    const initialMinutes = b ? Math.floor((b.displaySeconds || 8) / 60) : 0;
-    const initialSeconds = b ? (b.displaySeconds || 8) % 60 : 8;
     const el = document.getElementById('adminModalContent');
-    const previewHtml = (img, type) => type === 'video'
-      ? `<video src="${img}" muted loop autoplay playsinline id="bannerPreviewImg"></video>`
-      : `<img src="${img}" alt="" id="bannerPreviewImg">`;
     el.innerHTML = `
       <div class="modal__head"><h2>${b ? 'Editar banner' : 'Novo banner'}</h2><button class="icon-only-btn" id="closeBannerModal">✕</button></div>
       <div class="modal__body">
-        <div class="field-inline" style="margin-bottom:12px;">
-          <span class="fi-label">Tipo de mídia</span>
-          <div class="segmented" id="bannerMediaTypeSeg">
-            <button type="button" class="seg-btn ${mediaType === 'image' ? 'is-active' : ''}" data-media-type="image">🖼️ Imagem</button>
-            <button type="button" class="seg-btn ${mediaType === 'video' ? 'is-active' : ''}" data-media-type="video">🎬 Vídeo</button>
-          </div>
-        </div>
-        <input type="file" id="fBannerImageFile" accept="${mediaType === 'video' ? 'video/*' : 'image/*'}" style="display:none;">
-        <div class="upload-zone" id="bannerUploadZone" style="cursor:pointer;">${b ? previewHtml(b.img, mediaType) : ''}<div id="bannerUploadLabel">📷 ${b ? 'Clique para trocar a mídia' : 'Clique para enviar a imagem ou vídeo do banner'}</div></div>
+        <input type="file" id="fBannerImageFile" accept="image/*" style="display:none;">
+        <div class="upload-zone" id="bannerUploadZone" style="cursor:pointer;">${b ? `<img src="${b.img}" alt="" id="bannerPreviewImg">` : ''}<div id="bannerUploadLabel">📷 ${b ? 'Clique para trocar a imagem' : 'Clique para enviar a imagem do banner'}</div></div>
         <div class="field"><label>Título / chamada</label><input type="text" id="fBannerTitle" value="${b ? escapeHtml(b.title) : ''}" placeholder="Ex: Cupom especial de aniversário"><div class="field-error-msg" id="errBannerTitle">Digite o título do banner.</div></div>
         <div class="field-row">
-          <div class="field"><label>Início da exibição (opcional)</label><input type="date" id="fBannerStartDate" value="${b ? b.startDate : ''}"></div>
-          <div class="field"><label>Fim da exibição (opcional)</label><input type="date" id="fBannerEndDate" value="${b ? b.endDate : ''}"></div>
+          <div class="field"><label>Período de exibição</label><input type="text" id="fBannerPeriod" value="${b ? b.period : ''}" placeholder="Ex: 01/08 a 31/08/2026"></div>
           <div class="field"><label>Prioridade (ordem)</label><input type="number" min="1" id="fBannerPriority" value="${b ? b.priority : A.banners.length + 1}"></div>
         </div>
-        <div class="field-row">
-          <div class="field"><label>Duração na tela — minutos</label><input type="number" min="0" id="fBannerDurationMin" value="${initialMinutes}"></div>
-          <div class="field"><label>Duração na tela — segundos</label><input type="number" min="0" max="59" id="fBannerDurationSec" value="${initialSeconds}"></div>
-        </div>
-        <p class="muted" style="font-size:0.8rem; margin-top:-8px;">Quanto tempo esse banner fica na tela antes do carrossel passar pro próximo (só importa se houver mais de um banner ativo ao mesmo tempo).</p>
         <div class="field"><label>Link de destino</label><input type="text" id="fBannerLink" value="${b ? b.link : '#cardapio'}" placeholder="Ex: #cardapio ou id de um produto"></div>
         <div class="field-inline"><span class="fi-label">Banner ativo</span><button class="toggle ${!b || b.active ? 'is-on' : ''}" id="toggleBannerActive" type="button"></button></div>
       </div>
@@ -382,54 +344,34 @@
     document.getElementById('closeBannerModal').addEventListener('click', A.closeAllOverlays);
     document.getElementById('cancelBannerBtn').addEventListener('click', A.closeAllOverlays);
 
-    document.getElementById('bannerMediaTypeSeg').querySelectorAll('[data-media-type]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        mediaType = btn.dataset.mediaType;
-        document.querySelectorAll('#bannerMediaTypeSeg .seg-btn').forEach(x => x.classList.remove('is-active'));
-        btn.classList.add('is-active');
-        document.getElementById('fBannerImageFile').accept = mediaType === 'video' ? 'video/*' : 'image/*';
-        uploadedImg = null;
-        document.getElementById('bannerUploadZone').innerHTML = `<div id="bannerUploadLabel">📷 Clique para enviar ${mediaType === 'video' ? 'o vídeo' : 'a imagem'} do banner</div>`;
-      });
-    });
-
     const fileInput = document.getElementById('fBannerImageFile');
     const uploadZone = document.getElementById('bannerUploadZone');
     uploadZone.addEventListener('click', () => fileInput.click());
     fileInput.addEventListener('change', async () => {
       const file = fileInput.files[0];
       if (!file) return;
-      if (!window.SUPABASE_READY) { showToast('Conecte o Supabase pra enviar mídia de verdade.', 'error'); return; }
+      if (!window.SUPABASE_READY) { showToast('Conecte o Supabase pra enviar imagens de verdade.', 'error'); return; }
       document.getElementById('bannerUploadLabel').textContent = 'Enviando...';
       const ext = file.name.split('.').pop();
       const path = `banners/${uid()}.${ext}`;
       const { error } = await window.sb.storage.from('public-media').upload(path, file, { upsert: true });
       if (error) {
-        showToast('Falhou ao enviar a mídia: ' + error.message, 'error');
-        document.getElementById('bannerUploadLabel').textContent = `📷 Clique para enviar ${mediaType === 'video' ? 'o vídeo' : 'a imagem'} do banner`;
+        showToast('Falhou ao enviar a imagem: ' + error.message, 'error');
+        document.getElementById('bannerUploadLabel').textContent = '📷 Clique para enviar a imagem do banner';
         return;
       }
       const { data: pub } = window.sb.storage.from('public-media').getPublicUrl(path);
       uploadedImg = pub.publicUrl;
-      uploadZone.innerHTML = previewHtml(uploadedImg, mediaType) + `<div>📷 Clique para trocar a mídia</div>`;
-      showToast(mediaType === 'video' ? 'Vídeo enviado!' : 'Imagem enviada!');
+      uploadZone.innerHTML = `<img src="${uploadedImg}" alt=""><div>📷 Clique para trocar a imagem</div>`;
+      showToast('Imagem enviada!');
     });
 
     document.getElementById('saveBannerBtn').addEventListener('click', async () => {
       const title = document.getElementById('fBannerTitle').value.trim();
-      const startDate = document.getElementById('fBannerStartDate').value;
-      const endDate = document.getElementById('fBannerEndDate').value;
       toggleErr('fBannerTitle', 'errBannerTitle', !title);
       if (!title) return;
-      if (startDate && endDate && endDate < startDate) {
-        showToast('A data de fim não pode ser antes da data de início', 'error');
-        return;
-      }
-      const durationMin = parseInt(document.getElementById('fBannerDurationMin').value, 10) || 0;
-      const durationSec = parseInt(document.getElementById('fBannerDurationSec').value, 10) || 0;
-      const displaySeconds = Math.max(1, durationMin * 60 + durationSec);
       const data = {
-        title, startDate, endDate, mediaType, displaySeconds,
+        title, period: document.getElementById('fBannerPeriod').value.trim(),
         priority: parseInt(document.getElementById('fBannerPriority').value, 10) || 1,
         link: document.getElementById('fBannerLink').value.trim() || '#cardapio',
         active: document.getElementById('toggleBannerActive').classList.contains('is-on'),

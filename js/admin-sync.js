@@ -61,10 +61,10 @@
   }
 
   function bannerToDb(b) {
-    return { title: b.title, image_url: b.img || null, media_type: b.mediaType || 'image', display_seconds: b.displaySeconds || 8, start_date: b.startDate || null, end_date: b.endDate || null, link: b.link || '#cardapio', priority: b.priority || 1, active: !!b.active };
+    return { title: b.title, image_url: b.img || null, period_label: b.period || '', link: b.link || '#cardapio', priority: b.priority || 1, active: !!b.active };
   }
   function bannerFromDb(b) {
-    return { id: b.id, title: b.title, img: b.image_url || 'assets/brand/hero-burger.jpg', mediaType: b.media_type || 'image', displaySeconds: b.display_seconds || 8, startDate: b.start_date || '', endDate: b.end_date || '', priority: b.priority, link: b.link || '#cardapio', active: b.active };
+    return { id: b.id, title: b.title, img: b.image_url || 'assets/brand/hero-burger.jpg', period: b.period_label || '', priority: b.priority, link: b.link || '#cardapio', active: b.active };
   }
 
   const PAYMENT_LABELS = { pix: 'Pix', credito: 'Cartão de crédito', debito: 'Cartão de débito', dinheiro: 'Dinheiro' };
@@ -322,9 +322,6 @@
           else if (row.key === 'notifications') Object.assign(A.settings, row.value);
           else if (row.key === 'pix_config') Object.assign(A.settings, row.value);
           else if (row.key === 'delivery_geo') A.settings.deliveryGeo = row.value;
-          else if (row.key === 'home_sections') A.settings.homeSections = row.value;
-          else if (row.key === 'promo_banner') A.settings.promoBanner = row.value;
-          else if (row.key === 'faq_items') A.settings.faq = row.value;
         });
         A.persist('admin_settings', A.settings);
       }

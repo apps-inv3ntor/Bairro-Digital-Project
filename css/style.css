@@ -266,7 +266,7 @@ h1, h2, h3, h4 {
 }
 
 .hero__bg { position: absolute; inset: 0; z-index: 0; }
-.hero__bg img, .hero__bg video { width: 100%; height: 100%; object-fit: cover; object-position: 78% center; }
+.hero__bg img { width: 100%; height: 100%; object-fit: cover; object-position: 78% center; }
 .hero__scrim {
   position: absolute; inset: 0;
   background:
@@ -292,8 +292,6 @@ h1, h2, h3, h4 {
   backdrop-filter: blur(4px);
   padding: 6px 14px 6px 6px;
   border-radius: 999px;
-  text-decoration: none;
-  color: inherit;
   font-size: 0.8rem;
   margin-bottom: 20px;
   width: fit-content;
@@ -393,15 +391,6 @@ h1, h2, h3, h4 {
   scrollbar-width: none;
 }
 .categories__scroll::-webkit-scrollbar { display: none; }
-
-/* Alvo de âncora do menu superior (Início, Cardápio, Promoções, Área de entrega,
-   Dúvidas): o cabeçalho e a barra de categorias são "sticky" e ficam por cima do
-   topo da página quando rola. Sem isso, o navegador alinha o topo da seção exatamente
-   embaixo do cabeçalho — cortando a primeira linha de produtos/conteúdo visualmente.
-   130px = altura do cabeçalho (~65px) + altura da barra de categorias (~64px). */
-#inicio, #cardapio, #promocoes, #area-de-entrega, #duvidas {
-  scroll-margin-top: 130px;
-}
 .chip {
   flex-shrink: 0;
   padding: 9px 18px;
