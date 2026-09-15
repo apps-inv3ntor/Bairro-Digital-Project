@@ -304,7 +304,7 @@
       const status = bannerDisplayStatus(b);
       return `
       <div class="card product-admin-card" data-banner="${b.id}">
-        <div class="pac-img ${!b.active ? 'is-inactive' : ''}"><img src="${b.img}" alt=""></div>
+        <div class="pac-img ${!b.active ? 'is-inactive' : ''}">${b.mediaType === 'video' ? `<video src="${b.img}" muted playsinline preload="metadata"></video>` : `<img src="${b.img}" alt="">`}</div>
         <div class="pac-body">
           <h4 style="font-size:0.95rem;">${escapeHtml(b.title)}</h4>
           <div class="cat">${formatBannerPeriod(b)} · prioridade ${b.priority}</div>
