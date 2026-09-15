@@ -100,6 +100,20 @@
     const hoursEl = document.getElementById('footerHours');
     const phoneEl = document.getElementById('footerPhone');
     const payEl = document.getElementById('footerPayments');
+    const footerNameEl = document.getElementById('footerStoreName');
+    const brandNameEl = document.getElementById('brandName');
+
+    if (storeInfo && storeInfo.storeName) {
+      if (footerNameEl) footerNameEl.textContent = storeInfo.storeName;
+      if (brandNameEl) {
+        // Mantém o mesmo efeito visual (1ª palavra normal, resto em laranja) — sem isso,
+        // um nome digitado inteiro sairia todo branco, perdendo o destaque de marca.
+        const parts = storeInfo.storeName.toUpperCase().split(' ');
+        const first = parts.shift();
+        brandNameEl.innerHTML = parts.length ? `${first} <span>${parts.join(' ')}</span>` : first;
+      }
+      document.title = document.title.replace(/^[^—]*/, storeInfo.storeName + ' ');
+    }
     if (storeInfo && addrEl) addrEl.innerHTML = `${(storeInfo.address || '').replace(/</g, '&lt;')}.`;
     if (hours && hoursEl) hoursEl.textContent = describeHours(hours);
     if (storeInfo && phoneEl) phoneEl.textContent = `WhatsApp ${storeInfo.phone || ''}`;

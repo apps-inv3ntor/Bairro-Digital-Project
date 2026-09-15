@@ -475,7 +475,7 @@
     }
     document.getElementById('revenuePeriodSelect').addEventListener('change', (e) => {
       revenuePeriod = e.target.value;
-      A.goToView('visao-geral');
+      goToView('visao-geral');
     });
 
     // Mais vendidos (agrupado por nome a partir dos pedidos reais dos últimos 30 dias)
