@@ -84,6 +84,13 @@
       section2: { title: 'Hambúrgueres', categoryIds: ['hamburgueres'] },
       section3: { title: 'Combos & Acompanhamentos', categoryIds: ['combos', 'porcoes', 'bebidas', 'sobremesas'] },
     },
+    // Textos da seção "Seu pedido em 3 passos" (só título e descrição — os 3 passos e os
+    // números/ícones são fixos, o cliente só pediu poder editar o texto de cada um)
+    howItWorks: [
+      { title: 'Escolha', description: 'Monte seu pedido no cardápio, com todos os adicionais do jeito que você gosta.' },
+      { title: 'Informe onde', description: 'Escolha entrega ou retirada, e conte pra gente onde encontrar você.' },
+      { title: 'A brasa faz o resto', description: 'Seu pedido vai direto pra grelha e chega quentinho, no seu tempo.' },
+    ],
     // Banner "Oferta da Brasa" (o hero de promoção logo abaixo do cardápio)
     promoBanner: {
       active: true, eyebrow: 'Oferta da brasa', title: '2 burgers.\n1 noite memorável.',
@@ -101,6 +108,17 @@
       { id: 'f6', question: 'Posso retirar no local?', answer: 'Pode sim! Escolha "Retirada" no checkout — seu pedido fica pronto no balcão, sem taxa de entrega.' },
     ],
   });
+  // Rede de segurança: navegadores que já tinham "admin_settings" salvo de antes de um
+  // campo novo ser adicionado (como aconteceu com howItWorks) ficam sem esse campo, já
+  // que loadJSON usa o que está salvo por inteiro em vez de completar com o padrão. Isso
+  // preenche qualquer campo que ainda esteja faltando, sem sobrescrever o que já existe.
+  if (!Array.isArray(settings.howItWorks) || !settings.howItWorks.length) {
+    settings.howItWorks = [
+      { title: 'Escolha', description: 'Monte seu pedido no cardápio, com todos os adicionais do jeito que você gosta.' },
+      { title: 'Informe onde', description: 'Escolha entrega ou retirada, e conte pra gente onde encontrar você.' },
+      { title: 'A brasa faz o resto', description: 'Seu pedido vai direto pra grelha e chega quentinho, no seu tempo.' },
+    ];
+  }
   let currentView = 'visao-geral';
   let currentDrawerOrder = null;
   let editingProductId = null;
