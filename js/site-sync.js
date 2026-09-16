@@ -95,6 +95,16 @@
     // aqui não quebra o comportamento — não precisa religar nada.
   }
 
+  function renderHowItWorks(steps) {
+    if (!Array.isArray(steps)) return;
+    steps.forEach((step, i) => {
+      const titleEl = document.getElementById(`step${i + 1}Title`);
+      const descEl = document.getElementById(`step${i + 1}Desc`);
+      if (titleEl && step.title) titleEl.textContent = step.title;
+      if (descEl && step.description) descEl.textContent = step.description;
+    });
+  }
+
   function renderFooter(storeInfo, hours, payments) {
     const addrEl = document.getElementById('footerAddress');
     const hoursEl = document.getElementById('footerHours');
@@ -260,6 +270,8 @@
         if (bannerRow && bannerRow.value) { window.PROMO_BANNER = bannerRow.value; renderPromoBanner(bannerRow.value); }
         const faqRow = settingsRows.find(r => r.key === 'faq_items');
         if (faqRow && Array.isArray(faqRow.value)) { window.FAQ_ITEMS = faqRow.value; renderFaq(faqRow.value); }
+        const stepsRow = settingsRows.find(r => r.key === 'how_it_works');
+        if (stepsRow && Array.isArray(stepsRow.value)) renderHowItWorks(stepsRow.value);
       }
       renderFooter(storeInfoValue, hoursValue, paymentsValue);
 

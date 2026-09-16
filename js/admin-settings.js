@@ -112,6 +112,17 @@
           }).join('')}
           <button class="btn btn-primary" id="saveHomeSectionsBtn">Salvar faixas da home</button>
         </div>
+
+        <div class="card" style="padding:22px 24px; max-width:640px; margin-top:20px;">
+          <h3 style="margin:0 0 4px;">Seu pedido em 3 passos</h3>
+          <p class="muted" style="margin:0 0 14px;">Só o título e o texto de cada passo são editáveis — a ordem e os números (01, 02, 03) são fixos.</p>
+          ${A.settings.howItWorks.map((step, i) => `
+            <div style="border:1px solid var(--border); border-radius:12px; padding:16px; margin-bottom:14px;">
+              <div class="field"><label>Título do passo ${i + 1}</label><input type="text" id="sStep${i}Title" value="${escapeHtml(step.title)}"></div>
+              <div class="field"><label>Texto do passo ${i + 1}</label><textarea id="sStep${i}Desc" rows="2">${escapeHtml(step.description)}</textarea></div>
+            </div>`).join('')}
+          <button class="btn btn-primary" id="saveHowItWorksBtn">Salvar textos dos 3 passos</button>
+        </div>
       </div>
 
       <div class="tab-panel" id="tabBanner">
@@ -388,6 +399,20 @@
         if (!res.ok) { showToast('Salvo localmente, mas falhou ao gravar no banco: ' + (res.error && res.error.message || ''), 'error'); return; }
       }
       showToast('Faixas da home atualizadas');
+    });
+
+    document.getElementById('saveHowItWorksBtn').addEventListener('click', async () => {
+      A.settings.howItWorks.forEach((step, i) => {
+        step.title = document.getElementById(`sStep${i}Title`).value.trim();
+        step.description = document.getElementById(`sStep${i}Desc`).value.trim();
+      });
+      persist('admin_settings', A.settings);
+      const sync = window.__brasaCatalogSync;
+      if (sync) {
+        const res = await sync.saveSettingsKey('how_it_works', A.settings.howItWorks);
+        if (!res.ok) { showToast('Salvo localmente, mas falhou ao gravar no banco: ' + (res.error && res.error.message || ''), 'error'); return; }
+      }
+      showToast('Textos dos 3 passos atualizados');
     });
 
     const bannerToggle = document.getElementById('bannerActiveToggle');
