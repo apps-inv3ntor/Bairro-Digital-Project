@@ -127,7 +127,7 @@
     showConfirm({
       icon: '🗑️', title: `Apagar o delivery "${p.business_name}"?`,
       text: 'Remove esse preset da lista pra sempre. Se ele estiver ativo no site agora, o site continua como está até você terraformar outro — isso aqui não muda nada no ar.',
-      confirmLabel: 'Continuar',
+      confirmLabel: 'Continuar', keepOpenOnConfirm: true,
       onConfirm: () => {
         showConfirm({
           icon: '⚠️', title: 'Confirmação final',
@@ -154,7 +154,7 @@
     showConfirm({
       icon: '🌎', title: `Terraformar o sistema para "${p.business_name}"?`,
       text: 'Troca a 1ª categoria e os produtos dela, o nome da loja, o banner grande e a cor do site. Porções, Bebidas, Sobremesas e Combos ficam intactos. Nada é apagado de verdade — sempre dá pra voltar.',
-      confirmLabel: 'Continuar',
+      confirmLabel: 'Continuar', keepOpenOnConfirm: true,
       onConfirm: () => {
         showConfirm({
           icon: '⚠️', title: 'Confirmação final',
