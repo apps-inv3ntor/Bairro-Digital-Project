@@ -124,6 +124,10 @@
       }
       document.title = document.title.replace(/^[^—]*/, storeInfo.storeName + ' ');
     }
+    if (storeInfo && storeInfo.logoUrl) {
+      const logoEl = document.getElementById('brandLogo');
+      if (logoEl) logoEl.src = storeInfo.logoUrl;
+    }
     if (storeInfo && addrEl) addrEl.innerHTML = `${(storeInfo.address || '').replace(/</g, '&lt;')}.`;
     if (hours && hoursEl) hoursEl.textContent = describeHours(hours);
     if (storeInfo && phoneEl) phoneEl.textContent = `WhatsApp ${storeInfo.phone || ''}`;
@@ -272,6 +276,10 @@
         if (faqRow && Array.isArray(faqRow.value)) { window.FAQ_ITEMS = faqRow.value; renderFaq(faqRow.value); }
         const stepsRow = settingsRows.find(r => r.key === 'how_it_works');
         if (stepsRow && Array.isArray(stepsRow.value)) renderHowItWorks(stepsRow.value);
+        const themeRow = settingsRows.find(r => r.key === 'theme');
+        if (themeRow && themeRow.value && themeRow.value.backgroundColor) {
+          document.documentElement.style.setProperty('--bg-base', themeRow.value.backgroundColor);
+        }
       }
       renderFooter(storeInfoValue, hoursValue, paymentsValue);
 
