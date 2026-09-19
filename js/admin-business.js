@@ -110,6 +110,8 @@
       banner_eyebrow: preset.banner_eyebrow, banner_title: preset.banner_title,
       banner_description: preset.banner_description, coupon_code: preset.coupon_code,
       coupon_label: preset.coupon_label, background_color: preset.background_color,
+      store_display_name: preset.store_display_name, hero_title: preset.hero_title,
+      hero_subtitle: preset.hero_subtitle,
       products: preset.products,
     }, { onConflict: 'business_name' });
     if (error) { showToast('Erro ao importar: ' + error.message, 'error'); return; }
@@ -169,123 +171,17 @@
   async function runTerraformar(preset) {
     showToast('Terraformando o sistema, aguenta aí...');
     try {
-      // 1. Snapshot de segurança — cópia de tudo antes de mexer em qualquer coisa
-      const [{ data: catSnap }, { data: prodSnap }, { data: settingsSnap }, { data: bannerSnap }, { data: couponSnap }] = await Promise.all([
-        window.sb.from('categories').select('*'),
-        window.sb.from('products').select('*'),
-        window.sb.from('store_settings').select('*'),
-        window.sb.from('banners').select('*'),
-        window.sb.from('coupons').select('*'),
-      ]);
-      await window.sb.from('terraform_snapshots').insert({
-        label: `Antes de terraformar para ${preset.business_name}`,
-        categories: catSnap || [], products: prodSnap || [],
-        store_settings: settingsSnap || [], banners: bannerSnap || [],
-      });
-
-      // 2. Acha a categoria "principal" (1ª por ordem de exibição, nunca a "Combos")
-      const cats = (catSnap || []).slice().sort((a, b) => a.display_order - b.display_order);
-      const primary = cats.find(c => c.name !== 'Combos');
-      const combos = cats.find(c => c.name === 'Combos');
-      if (!primary) { showToast('Não encontrei a categoria principal pra renomear — abortando.', 'error'); return; }
-
-      // 3. Limpa os produtos:
-      //    - categoria PRINCIPAL: remove TUDO que está lá agora, seja original da loja ou de
-      //      um terraform anterior — essa categoria inteira é "possuída" pelo delivery ativo,
-      //      então nada nela sobrevive à troca (é isso que faltava: antes só apagava o que
-      //      tinha a marca de um preset, deixando os produtos originais acumulando junto).
-      //    - categoria COMBOS: remove só o que um terraform anterior colocou lá, preservando
-      //      pra sempre o combo original da loja (aqui sim faz sentido só apagar o marcado).
-      await window.sb.from('products').delete().eq('category_id', primary.id);
-      if (combos) {
-        await window.sb.from('products').delete().eq('category_id', combos.id).not('source_preset_id', 'is', null);
+      // Tudo acontece dentro de UMA função no banco (terraform_apply, ver migração
+      // 0015) — ou aplica tudo, ou não aplica nada. Antes eram ~12 chamadas
+      // separadas daqui do navegador; se qualquer uma no meio falhasse (como
+      // vinha acontecendo com produtos/cupons já usados em pedidos reais), o
+      // sistema ficava pela metade sem avisar ninguém.
+      const { data, error } = await window.sb.rpc('terraform_apply', { p_preset_id: preset.id });
+      if (error) {
+        showToast('Erro ao terraformar: ' + error.message, 'error');
+        return;
       }
-
-      // 4. Renomeia a categoria principal
-      await window.sb.from('categories').update({ name: preset.category_title }).eq('id', primary.id);
-
-      // 5. Insere os 13 produtos novos — "combo" vai pra Combos, o resto pra categoria principal
-      const newProductsPayload = preset.products.map((prod) => ({
-        category_id: (prod.is_combo && combos) ? combos.id : primary.id,
-        name: prod.name, code: prod.sku, price: prod.price, image_url: prod.image_url,
-        ingredients: prod.ingredients_text || '', active: true, source_preset_id: preset.id,
-      }));
-      const { data: insertedProducts, error: prodErr } = await window.sb.from('products')
-        .insert(newProductsPayload).select('id, code');
-      if (prodErr) { showToast('Erro ao inserir produtos: ' + prodErr.message, 'error'); return; }
-
-      // 6. Insumos (Estoque) + ficha técnica — insumo é uma "biblioteca" compartilhada (nome é único),
-      // então usamos upsert por nome em vez de sempre criar linha nova.
-      for (let i = 0; i < preset.products.length; i++) {
-        const prod = preset.products[i];
-        const inserted = insertedProducts.find(ip => ip.code === prod.sku);
-        if (!inserted) continue;
-        for (const ins of (prod.insumos || [])) {
-          const { data: insumoRow } = await window.sb.from('insumos')
-            .upsert({
-              nome: ins.name, unidade_medida: ins.unit,
-              capacidade_maxima: Math.max(Number(ins.quantity) * 20, 1),
-              quantidade_atual: Math.max(Number(ins.quantity) * 20, 1),
-              cost_price: ins.cost_price, margin_pct: ins.margin_pct,
-              gross_profit: ins.gross_profit, net_profit: ins.net_profit, profit_pct: ins.profit_pct,
-            }, { onConflict: 'nome' })
-            .select('id').single();
-          if (!insumoRow) continue;
-          await window.sb.from('ficha_tecnica').upsert({
-            product_id: inserted.id, insumo_id: insumoRow.id, quantidade_gasta: ins.quantity,
-          }, { onConflict: 'product_id,insumo_id' });
-        }
-      }
-
-      // 7. Nome da loja + logo (dentro de store_info) e cor de fundo (chave nova "theme")
-      const storeInfoRow = (settingsSnap || []).find(r => r.key === 'store_info');
-      const newStoreInfo = Object.assign({}, storeInfoRow ? storeInfoRow.value : {}, {
-        storeName: preset.business_name, logoUrl: preset.logo_url,
-      });
-      await window.sb.from('store_settings').upsert({ key: 'store_info', value: newStoreInfo }, { onConflict: 'key' });
-      await window.sb.from('store_settings').upsert({ key: 'theme', value: { backgroundColor: preset.background_color } }, { onConflict: 'key' });
-
-      // 8. Faixa 2 da home ("Página inicial" nas Configurações) — assume o nome e a categoria
-      // principal nova; a faixa 3 (Combos & Delicias) fica do jeito que já estava configurada.
-      const homeSectionsRow = (settingsSnap || []).find(r => r.key === 'home_sections');
-      const newHomeSections = Object.assign({}, homeSectionsRow ? homeSectionsRow.value : {});
-      newHomeSections.section2 = { title: preset.category_title, categoryIds: [primary.id] };
-      await window.sb.from('store_settings').upsert({ key: 'home_sections', value: newHomeSections }, { onConflict: 'key' });
-
-      // 9. Banner "Oferta da Loja" (a seção separada da faixa de banners rotativa) — troca
-      // o texto pequeno, o título grande e o cupom exibido; o resto (botão/link) fica igual.
-      const promoBannerRow = (settingsSnap || []).find(r => r.key === 'promo_banner');
-      const newPromoBanner = Object.assign({}, promoBannerRow ? promoBannerRow.value : {}, {
-        eyebrow: preset.banner_eyebrow, title: preset.banner_title, couponCode: preset.coupon_code,
-      });
-      await window.sb.from('store_settings').upsert({ key: 'promo_banner', value: newPromoBanner }, { onConflict: 'key' });
-
-      // 10. Cupom de desconto: troca o cupom de um terraform anterior pelo novo (nunca mexe
-      // num cupom que o próprio usuário criou manualmente, sem vir de nenhum preset).
-      await window.sb.from('coupons').delete().not('source_preset_id', 'is', null);
-      if (preset.coupon_code) {
-        const pctMatch = /(\d+(?:[.,]\d+)?)\s*%/.exec(preset.coupon_label || '');
-        await window.sb.from('coupons').upsert({
-          code: preset.coupon_code, type: 'percent',
-          value: pctMatch ? parseFloat(pctMatch[1].replace(',', '.')) : 10,
-          min_order: 0, active: true, source_preset_id: preset.id,
-        }, { onConflict: 'code' });
-      }
-
-      // 11. Banner grande: some com o de um terraform anterior, desativa qualquer outro banner
-      // (pra não misturar identidade visual de negócios diferentes), e cria o novo, ativo, prioridade máxima.
-      await window.sb.from('banners').delete().not('source_preset_id', 'is', null);
-      const remainingBannerIds = (bannerSnap || []).filter(b => !b.source_preset_id).map(b => b.id);
-      if (remainingBannerIds.length) {
-        await window.sb.from('banners').update({ active: false }).in('id', remainingBannerIds);
-      }
-      await window.sb.from('banners').insert({
-        title: preset.coupon_label || preset.banner_title, image_url: preset.banner_strip_url,
-        media_type: 'image', display_seconds: 8, link: '#cardapio', priority: 1, active: true,
-        source_preset_id: preset.id,
-      });
-
-      showToast(`Terraformado para "${preset.business_name}"! Recarregue o admin e confira o site público.`);
+      showToast(`Terraformado para "${preset.business_name}"! ${data?.products_inserted || 0} produtos novos. Recarregue o admin e confira o site público.`);
       A.goToView('produtos');
     } catch (err) {
       showToast('Erro inesperado ao terraformar: ' + (err.message || err), 'error');
