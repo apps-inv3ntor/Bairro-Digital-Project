@@ -132,31 +132,6 @@
     if (hours && hoursEl) hoursEl.textContent = describeHours(hours);
     if (storeInfo && phoneEl) phoneEl.textContent = `WhatsApp ${storeInfo.phone || ''}`;
     if (payments && payEl) payEl.textContent = describePayments(payments);
-
-    // Linha de copyright do rodapé — antes era 100% fixa no HTML ("Brasa Burger Co."),
-    // não acompanhava o Terraformar.
-    const copyEl = document.getElementById('footerCopy');
-    if (storeInfo && storeInfo.storeName && copyEl) {
-      copyEl.textContent = `© ${new Date().getFullYear()} ${storeInfo.storeName}. Todos os direitos reservados.`;
-    }
-  }
-
-  // Título/subtítulo do banner grande (H1) — antes ficavam 100% fixos no HTML,
-  // sem nenhuma ligação com o Terraformar. heroTitle vem com "\n" separando as
-  // 2 linhas quando tiver; se vier só uma linha, mostra só ela.
-  function renderHero(storeInfo) {
-    if (!storeInfo) return;
-    const titleEl = document.getElementById('heroTitle');
-    const subtitleEl = document.getElementById('heroSubtitle');
-    if (titleEl && storeInfo.heroTitle) {
-      const lines = storeInfo.heroTitle.split('\n');
-      const first = (lines[0] || '').replace(/</g, '&lt;');
-      const second = (lines[1] || '').replace(/</g, '&lt;');
-      titleEl.innerHTML = second ? `${first} <br><em>${second}</em>` : first;
-    }
-    if (subtitleEl && storeInfo.heroSubtitle) {
-      subtitleEl.textContent = storeInfo.heroSubtitle;
-    }
   }
 
   async function loadCatalogFromSupabase() {
@@ -307,7 +282,6 @@
         }
       }
       renderFooter(storeInfoValue, hoursValue, paymentsValue);
-      renderHero(storeInfoValue);
 
       if (typeof window.__brasaRefreshMenu === 'function') window.__brasaRefreshMenu();
       if (typeof window.__brasaRefreshCart === 'function') window.__brasaRefreshCart();
