@@ -110,6 +110,8 @@
       banner_eyebrow: preset.banner_eyebrow, banner_title: preset.banner_title,
       banner_description: preset.banner_description, coupon_code: preset.coupon_code,
       coupon_label: preset.coupon_label, background_color: preset.background_color,
+      store_display_name: preset.store_display_name, hero_title: preset.hero_title,
+      hero_subtitle: preset.hero_subtitle,
       products: preset.products,
     }, { onConflict: 'business_name' });
     if (error) { showToast('Erro ao importar: ' + error.message, 'error'); return; }
@@ -188,8 +190,16 @@
       const combos = cats.find(c => c.name === 'Combos');
       if (!primary) { showToast('Não encontrei a categoria principal pra renomear — abortando.', 'error'); return; }
 
-      // 3. Remove produtos de um terraform ANTERIOR (nunca toca em produto original da loja)
-      await window.sb.from('products').delete().not('source_preset_id', 'is', null);
+      // 3. Remove produtos da categoria principal inteira (original da loja OU de
+      // terraform anterior — antes só apagava os de terraform anterior, por isso
+      // ficava acumulando hambúrguer junto com açaí). Combos só perde o que um
+      // terraform anterior colocou lá, preservando o combo original da loja.
+      const { error: delPrimaryErr } = await window.sb.from('products').delete().eq('category_id', primary.id);
+      if (delPrimaryErr) { showToast('Erro ao limpar produtos antigos: ' + delPrimaryErr.message, 'error'); return; }
+      if (combos) {
+        const { error: delComboErr } = await window.sb.from('products').delete().eq('category_id', combos.id).not('source_preset_id', 'is', null);
+        if (delComboErr) { showToast('Erro ao limpar combos antigos: ' + delComboErr.message, 'error'); return; }
+      }
 
       // 4. Renomeia a categoria principal
       await window.sb.from('categories').update({ name: preset.category_title }).eq('id', primary.id);
@@ -227,13 +237,45 @@
         }
       }
 
-      // 7. Nome da loja + logo (dentro de store_info) e cor de fundo (chave nova "theme")
+      // 7. Nome de exibição da loja + logo + H1/subtítulo do banner grande (dentro
+      // de store_info) e cor de fundo (chave "theme"). store_display_name é o nome
+      // de EXIBIÇÃO (ex "Açaiteria"), diferente do category_title (ex "Açaí").
       const storeInfoRow = (settingsSnap || []).find(r => r.key === 'store_info');
+      const displayName = preset.store_display_name || preset.business_name;
       const newStoreInfo = Object.assign({}, storeInfoRow ? storeInfoRow.value : {}, {
-        storeName: preset.business_name, logoUrl: preset.logo_url,
+        storeName: displayName, logoUrl: preset.logo_url,
+        heroTitle: preset.hero_title, heroSubtitle: preset.hero_subtitle,
       });
       await window.sb.from('store_settings').upsert({ key: 'store_info', value: newStoreInfo }, { onConflict: 'key' });
       await window.sb.from('store_settings').upsert({ key: 'theme', value: { backgroundColor: preset.background_color } }, { onConflict: 'key' });
+
+      // 7b. Faixa 2 da home assume o nome de exibição + a categoria principal nova
+      // (faixa 3 fica do jeito que já estava configurada — não mexe).
+      const homeSectionsRow = (settingsSnap || []).find(r => r.key === 'home_sections');
+      const newHomeSections = Object.assign({}, homeSectionsRow ? homeSectionsRow.value : {}, {
+        section2: { title: displayName, categoryIds: [primary.id] },
+      });
+      await window.sb.from('store_settings').upsert({ key: 'home_sections', value: newHomeSections }, { onConflict: 'key' });
+
+      // 7c. Banner "Oferta da Loja" (a seção separada, não o banner grande rotativo)
+      const promoBannerRow = (settingsSnap || []).find(r => r.key === 'promo_banner');
+      const newPromoBanner = Object.assign({}, promoBannerRow ? promoBannerRow.value : {}, {
+        eyebrow: preset.banner_eyebrow, title: preset.banner_title, couponCode: preset.coupon_code,
+      });
+      await window.sb.from('store_settings').upsert({ key: 'promo_banner', value: newPromoBanner }, { onConflict: 'key' });
+
+      // 7d. Cupom de desconto — antes o Terraformar nem tocava nessa tabela.
+      // Some com o cupom de um terraform anterior, nunca mexe num cupom criado
+      // manualmente sem vir de preset nenhum.
+      await window.sb.from('coupons').delete().not('source_preset_id', 'is', null).neq('source_preset_id', preset.id);
+      if (preset.coupon_code) {
+        const pctMatch = (preset.coupon_label || '').match(/(\d+(?:[.,]\d+)?)\s*%/);
+        const couponValue = pctMatch ? parseFloat(pctMatch[1].replace(',', '.')) : 10;
+        await window.sb.from('coupons').upsert({
+          code: preset.coupon_code, type: 'percent', value: couponValue, min_order: 0,
+          active: true, source_preset_id: preset.id,
+        }, { onConflict: 'code' });
+      }
 
       // 8. Banner grande: some com o de um terraform anterior, desativa qualquer outro banner
       // (pra não misturar identidade visual de negócios diferentes), e cria o novo, ativo, prioridade máxima.
