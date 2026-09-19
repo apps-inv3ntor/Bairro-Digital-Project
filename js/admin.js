@@ -328,15 +328,7 @@
     document.getElementById('backdrop').classList.remove('is-open');
   }
 
-  // Proteção contra "clique fantasma": o backdrop cobre a tela inteira assim
-  // que abre, no MESMO lugar onde o botão que abriu a caixa estava. Se rolar
-  // um segundo clique rápido ali (impaciência, ou mouse/trackpad com bug de
-  // clique duplo), ele acerta o backdrop em vez do botão e fecha tudo na
-  // hora — parecendo que "nada aconteceu" no Terraformar/Apagar. Ignora
-  // cliques no backdrop nos primeiros 400ms depois de abrir.
-  let backdropOpenedAt = 0;
   document.getElementById('backdrop').addEventListener('click', () => {
-    if (Date.now() - backdropOpenedAt < 400) return;
     closeMobileSidebar();
     closeAllOverlays();
   });
@@ -348,7 +340,7 @@
     document.getElementById('adminModal').classList.remove('is-open');
     document.getElementById('confirmModal').classList.remove('is-open');
   }
-  function openBackdrop() { backdropOpenedAt = Date.now(); document.getElementById('backdrop').classList.add('is-open'); }
+  function openBackdrop() { document.getElementById('backdrop').classList.add('is-open'); }
 
   /* Data no topbar */
   const WEEKDAYS_PT = ['DOMINGO', 'SEGUNDA-FEIRA', 'TERÇA-FEIRA', 'QUARTA-FEIRA', 'QUINTA-FEIRA', 'SEXTA-FEIRA', 'SÁBADO'];

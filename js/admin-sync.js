@@ -328,17 +328,6 @@
           else if (row.key === 'how_it_works') A.settings.howItWorks = row.value;
         });
         A.persist('admin_settings', A.settings);
-        // Logo/nome da loja no cabeçalho do próprio admin (não só no site público) —
-        // sem isso, o Terraformar trocava tudo, menos essa parte que fica visível o
-        // tempo todo enquanto se navega no painel.
-        if (A.settings.logoUrl) {
-          const logoEl = document.getElementById('sidebarLogo');
-          if (logoEl) logoEl.src = A.settings.logoUrl;
-        }
-        if (A.settings.storeName) {
-          const textEl = document.getElementById('sidebarBrandText');
-          if (textEl) textEl.textContent = A.settings.storeName.toUpperCase();
-        }
       }
       A.showToast('Catálogo e configurações carregados do banco de dados real ✅');
       A.goToView(A.currentView || 'visao-geral');

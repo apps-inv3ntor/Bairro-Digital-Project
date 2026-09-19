@@ -94,12 +94,6 @@
       </div>
 
       <div class="tab-panel" id="tabHome">
-        <div class="card" style="padding:22px 24px; max-width:640px; margin-bottom:16px;">
-          <p class="muted" style="margin:0 0 14px;">Título de impacto (H1) e subtítulo do banner grande do topo do site — o que troca automaticamente ao Terraformar, mas também dá pra editar aqui na mão.</p>
-          <div class="field"><label>Título de impacto (use quebra de linha pra 2 linhas)</label><textarea id="sHeroTitle" rows="2">${escapeHtml(A.settings.heroTitle || '')}</textarea></div>
-          <div class="field"><label>Subtítulo</label><textarea id="sHeroSubtitle" rows="2">${escapeHtml(A.settings.heroSubtitle || '')}</textarea></div>
-          <button class="btn btn-primary" id="saveHeroBtn">Salvar banner principal</button>
-        </div>
         <div class="card" style="padding:22px 24px; max-width:640px;">
           <p class="muted" style="margin:0 0 14px;">A 1ª faixa da home ("Mais pedidos") sempre mostra os produtos marcados como destaque em "Produtos". As outras duas você customiza aqui: o título e quais categorias de produto aparecem em cada uma.</p>
           ${['section2', 'section3'].map((key, i) => {
@@ -256,21 +250,6 @@
       document.getElementById(map[btn.dataset.tab]).classList.add('is-active');
     });
 
-    // Sempre manda TODOS os campos conhecidos de store_info, mesmo os que a tela
-    // que está salvando não edita (logoUrl, heroTitle, heroSubtitle) — saveSettingsKey
-    // sobrescreve o valor inteiro no banco, não faz merge, então esquecer um campo
-    // aqui apaga ele de vez (foi assim que "Dados da loja" vinha apagando o logo e
-    // apagaria também o título de impacto do banner).
-    function buildStoreInfoPayload() {
-      return {
-        storeName: A.settings.storeName, phone: A.settings.phone, address: A.settings.address,
-        addressStreet: A.settings.addressStreet, addressNeighborhood: A.settings.addressNeighborhood,
-        addressCep: A.settings.addressCep, addressCity: A.settings.addressCity,
-        instagram: A.settings.instagram, minOrder: A.settings.minOrder,
-        logoUrl: A.settings.logoUrl, heroTitle: A.settings.heroTitle, heroSubtitle: A.settings.heroSubtitle,
-      };
-    }
-
     document.getElementById('saveStoreBtn').addEventListener('click', async () => {
       A.settings.storeName = document.getElementById('sStoreName').value.trim();
       A.settings.phone = document.getElementById('sPhone').value.trim();
@@ -284,23 +263,14 @@
       persist('admin_settings', A.settings);
       const sync = window.__brasaCatalogSync;
       if (sync) {
-        const res = await sync.saveSettingsKey('store_info', buildStoreInfoPayload());
+        const res = await sync.saveSettingsKey('store_info', {
+          storeName: A.settings.storeName, phone: A.settings.phone, address: A.settings.address,
+          addressStreet: A.settings.addressStreet, addressNeighborhood: A.settings.addressNeighborhood, addressCep: A.settings.addressCep, addressCity: A.settings.addressCity,
+          instagram: A.settings.instagram, minOrder: A.settings.minOrder,
+        });
         if (!res.ok) { showToast('Salvo localmente, mas falhou ao gravar no banco: ' + (res.error && res.error.message || ''), 'error'); return; }
       }
       showToast('Dados da loja atualizados');
-    });
-
-    const saveHeroBtn = document.getElementById('saveHeroBtn');
-    if (saveHeroBtn) saveHeroBtn.addEventListener('click', async () => {
-      A.settings.heroTitle = document.getElementById('sHeroTitle').value.trim();
-      A.settings.heroSubtitle = document.getElementById('sHeroSubtitle').value.trim();
-      persist('admin_settings', A.settings);
-      const sync = window.__brasaCatalogSync;
-      if (sync) {
-        const res = await sync.saveSettingsKey('store_info', buildStoreInfoPayload());
-        if (!res.ok) { showToast('Salvo localmente, mas falhou ao gravar no banco: ' + (res.error && res.error.message || ''), 'error'); return; }
-      }
-      showToast('Banner principal atualizado');
     });
 
     let pendingGeo = A.settings.deliveryGeo || null;

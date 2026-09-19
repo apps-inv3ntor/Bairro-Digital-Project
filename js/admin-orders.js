@@ -282,7 +282,7 @@
   }
 
   /* ---------------- Diálogo de confirmação genérico (usado em várias views) ---------------- */
-  function showConfirm({ icon, title, text, confirmLabel, confirmClass, onConfirm }) {
+  function showConfirm({ icon, title, text, confirmLabel, confirmClass, onConfirm, keepOpenOnConfirm }) {
     const el = document.getElementById('confirmModalContent');
     el.innerHTML = `
       <div class="confirm-box">
@@ -297,7 +297,13 @@
     openBackdrop();
     document.getElementById('confirmModal').classList.add('is-open');
     document.getElementById('confirmCancelBtn').addEventListener('click', A.closeAllOverlays);
-    document.getElementById('confirmOkBtn').addEventListener('click', () => { onConfirm(); A.closeAllOverlays(); });
+    document.getElementById('confirmOkBtn').addEventListener('click', () => {
+      onConfirm();
+      // keepOpenOnConfirm: pra quando o próprio onConfirm abre OUTRA confirmação em cima
+      // (ex: dupla confirmação de ações destrutivas) — sem isso, fechar aqui na sequência
+      // fecharia também a segunda caixa que acabou de abrir, instantaneamente.
+      if (!keepOpenOnConfirm) A.closeAllOverlays();
+    });
   }
   window.__brasaShowConfirm = showConfirm;
 })();
