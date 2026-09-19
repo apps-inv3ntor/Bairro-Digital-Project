@@ -170,11 +170,12 @@
     showToast('Terraformando o sistema, aguenta aí...');
     try {
       // 1. Snapshot de segurança — cópia de tudo antes de mexer em qualquer coisa
-      const [{ data: catSnap }, { data: prodSnap }, { data: settingsSnap }, { data: bannerSnap }] = await Promise.all([
+      const [{ data: catSnap }, { data: prodSnap }, { data: settingsSnap }, { data: bannerSnap }, { data: couponSnap }] = await Promise.all([
         window.sb.from('categories').select('*'),
         window.sb.from('products').select('*'),
         window.sb.from('store_settings').select('*'),
         window.sb.from('banners').select('*'),
+        window.sb.from('coupons').select('*'),
       ]);
       await window.sb.from('terraform_snapshots').insert({
         label: `Antes de terraformar para ${preset.business_name}`,
@@ -188,8 +189,17 @@
       const combos = cats.find(c => c.name === 'Combos');
       if (!primary) { showToast('Não encontrei a categoria principal pra renomear — abortando.', 'error'); return; }
 
-      // 3. Remove produtos de um terraform ANTERIOR (nunca toca em produto original da loja)
-      await window.sb.from('products').delete().not('source_preset_id', 'is', null);
+      // 3. Limpa os produtos:
+      //    - categoria PRINCIPAL: remove TUDO que está lá agora, seja original da loja ou de
+      //      um terraform anterior — essa categoria inteira é "possuída" pelo delivery ativo,
+      //      então nada nela sobrevive à troca (é isso que faltava: antes só apagava o que
+      //      tinha a marca de um preset, deixando os produtos originais acumulando junto).
+      //    - categoria COMBOS: remove só o que um terraform anterior colocou lá, preservando
+      //      pra sempre o combo original da loja (aqui sim faz sentido só apagar o marcado).
+      await window.sb.from('products').delete().eq('category_id', primary.id);
+      if (combos) {
+        await window.sb.from('products').delete().eq('category_id', combos.id).not('source_preset_id', 'is', null);
+      }
 
       // 4. Renomeia a categoria principal
       await window.sb.from('categories').update({ name: preset.category_title }).eq('id', primary.id);
@@ -235,7 +245,34 @@
       await window.sb.from('store_settings').upsert({ key: 'store_info', value: newStoreInfo }, { onConflict: 'key' });
       await window.sb.from('store_settings').upsert({ key: 'theme', value: { backgroundColor: preset.background_color } }, { onConflict: 'key' });
 
-      // 8. Banner grande: some com o de um terraform anterior, desativa qualquer outro banner
+      // 8. Faixa 2 da home ("Página inicial" nas Configurações) — assume o nome e a categoria
+      // principal nova; a faixa 3 (Combos & Delicias) fica do jeito que já estava configurada.
+      const homeSectionsRow = (settingsSnap || []).find(r => r.key === 'home_sections');
+      const newHomeSections = Object.assign({}, homeSectionsRow ? homeSectionsRow.value : {});
+      newHomeSections.section2 = { title: preset.category_title, categoryIds: [primary.id] };
+      await window.sb.from('store_settings').upsert({ key: 'home_sections', value: newHomeSections }, { onConflict: 'key' });
+
+      // 9. Banner "Oferta da Loja" (a seção separada da faixa de banners rotativa) — troca
+      // o texto pequeno, o título grande e o cupom exibido; o resto (botão/link) fica igual.
+      const promoBannerRow = (settingsSnap || []).find(r => r.key === 'promo_banner');
+      const newPromoBanner = Object.assign({}, promoBannerRow ? promoBannerRow.value : {}, {
+        eyebrow: preset.banner_eyebrow, title: preset.banner_title, couponCode: preset.coupon_code,
+      });
+      await window.sb.from('store_settings').upsert({ key: 'promo_banner', value: newPromoBanner }, { onConflict: 'key' });
+
+      // 10. Cupom de desconto: troca o cupom de um terraform anterior pelo novo (nunca mexe
+      // num cupom que o próprio usuário criou manualmente, sem vir de nenhum preset).
+      await window.sb.from('coupons').delete().not('source_preset_id', 'is', null);
+      if (preset.coupon_code) {
+        const pctMatch = /(\d+(?:[.,]\d+)?)\s*%/.exec(preset.coupon_label || '');
+        await window.sb.from('coupons').upsert({
+          code: preset.coupon_code, type: 'percent',
+          value: pctMatch ? parseFloat(pctMatch[1].replace(',', '.')) : 10,
+          min_order: 0, active: true, source_preset_id: preset.id,
+        }, { onConflict: 'code' });
+      }
+
+      // 11. Banner grande: some com o de um terraform anterior, desativa qualquer outro banner
       // (pra não misturar identidade visual de negócios diferentes), e cria o novo, ativo, prioridade máxima.
       await window.sb.from('banners').delete().not('source_preset_id', 'is', null);
       const remainingBannerIds = (bannerSnap || []).filter(b => !b.source_preset_id).map(b => b.id);

@@ -296,7 +296,7 @@
   const VIEW_TITLES = {
     'visao-geral': 'Visão geral', 'pedidos': 'Pedidos', 'produtos': 'Produtos', 'categorias': 'Categorias',
     'adicionais': 'Adicionais', 'estoque': 'Estoque', 'cupons': 'Cupons', 'areas': 'Áreas de entrega', 'banners': 'Banners e promoções',
-    'configuracoes': 'Configurações', 'business': 'Business',
+    'configuracoes': 'Configurações',
   };
   const VIEW_RENDERERS = {}; // preenchido mais abaixo por cada módulo de view
 
