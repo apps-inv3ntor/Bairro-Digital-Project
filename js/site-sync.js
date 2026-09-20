@@ -105,6 +105,24 @@
     });
   }
 
+  // Título/subtítulo do banner de topo (H1 grande) — antes ficavam 100% fixos
+  // no HTML. heroTitle vem com "\n" separando as 2 linhas quando tiver; se
+  // vier só uma linha, mostra só ela.
+  function renderHero(storeInfo) {
+    if (!storeInfo) return;
+    const titleEl = document.getElementById('heroTitle');
+    const subtitleEl = document.getElementById('heroSubtitle');
+    if (titleEl && storeInfo.heroTitle) {
+      const lines = storeInfo.heroTitle.split('\n');
+      const first = (lines[0] || '').replace(/</g, '&lt;');
+      const second = (lines[1] || '').replace(/</g, '&lt;');
+      titleEl.innerHTML = second ? `${first} <br><em>${second}</em>` : first;
+    }
+    if (subtitleEl && storeInfo.heroSubtitle) {
+      subtitleEl.textContent = storeInfo.heroSubtitle;
+    }
+  }
+
   function renderFooter(storeInfo, hours, payments) {
     const addrEl = document.getElementById('footerAddress');
     const hoursEl = document.getElementById('footerHours');
@@ -282,6 +300,7 @@
         }
       }
       renderFooter(storeInfoValue, hoursValue, paymentsValue);
+      renderHero(storeInfoValue);
 
       if (typeof window.__brasaRefreshMenu === 'function') window.__brasaRefreshMenu();
       if (typeof window.__brasaRefreshCart === 'function') window.__brasaRefreshCart();

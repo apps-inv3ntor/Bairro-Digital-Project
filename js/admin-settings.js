@@ -26,6 +26,7 @@
         <button class="tab-btn" data-tab="horarios">Horário de funcionamento</button>
         <button class="tab-btn" data-tab="pagamentos">Pagamentos</button>
         <button class="tab-btn" data-tab="home">Página inicial</button>
+        <button class="tab-btn" data-tab="topo">Banner de Topo</button>
         <button class="tab-btn" data-tab="banner">Banner de oferta</button>
         <button class="tab-btn" data-tab="faq">Perguntas frequentes</button>
         <button class="tab-btn" data-tab="usuarios">Usuários e permissões</button>
@@ -122,6 +123,15 @@
               <div class="field"><label>Texto do passo ${i + 1}</label><textarea id="sStep${i}Desc" rows="2">${escapeHtml(step.description)}</textarea></div>
             </div>`).join('')}
           <button class="btn btn-primary" id="saveHowItWorksBtn">Salvar textos dos 3 passos</button>
+        </div>
+      </div>
+
+      <div class="tab-panel" id="tabTopo">
+        <div class="card" style="padding:22px 24px; max-width:560px;">
+          <p class="muted" style="margin:0 0 14px;">Textos do banner grande do topo do site — o título de impacto (H1) e o subtítulo logo abaixo. Não mexe no selo de cupom (isso vem do Terraformar / dos banners cadastrados) nem no Banner de Oferta (esse é o card do meio da página, na outra aba).</p>
+          <div class="field"><label>Título de impacto (use quebra de linha pra 2 linhas)</label><textarea id="sHeroTitle" rows="2">${escapeHtml(A.settings.heroTitle || '')}</textarea></div>
+          <div class="field"><label>Subtítulo</label><textarea id="sHeroSubtitle" rows="2">${escapeHtml(A.settings.heroSubtitle || '')}</textarea></div>
+          <button class="btn btn-primary" id="saveHeroBtn">Salvar banner de topo</button>
         </div>
       </div>
 
@@ -246,9 +256,23 @@
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('is-active'));
       document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('is-active'));
       btn.classList.add('is-active');
-      const map = { loja: 'tabLoja', entrega: 'tabEntrega', horarios: 'tabHorarios', pagamentos: 'tabPagamentos', home: 'tabHome', banner: 'tabBanner', faq: 'tabFaq', usuarios: 'tabUsuarios', notificacoes: 'tabNotificacoes' };
+      const map = { loja: 'tabLoja', entrega: 'tabEntrega', horarios: 'tabHorarios', pagamentos: 'tabPagamentos', home: 'tabHome', topo: 'tabTopo', banner: 'tabBanner', faq: 'tabFaq', usuarios: 'tabUsuarios', notificacoes: 'tabNotificacoes' };
       document.getElementById(map[btn.dataset.tab]).classList.add('is-active');
     });
+
+    // Sempre manda TODOS os campos conhecidos de store_info, mesmo os que a tela
+    // que está salvando não edita (ex: heroTitle/heroSubtitle) — saveSettingsKey
+    // sobrescreve o valor inteiro no banco, não faz merge, então esquecer um
+    // campo aqui apaga ele de vez.
+    function buildStoreInfoPayload() {
+      return {
+        storeName: A.settings.storeName, phone: A.settings.phone, address: A.settings.address,
+        addressStreet: A.settings.addressStreet, addressNeighborhood: A.settings.addressNeighborhood,
+        addressCep: A.settings.addressCep, addressCity: A.settings.addressCity,
+        instagram: A.settings.instagram, minOrder: A.settings.minOrder,
+        logoUrl: A.settings.logoUrl, heroTitle: A.settings.heroTitle, heroSubtitle: A.settings.heroSubtitle,
+      };
+    }
 
     document.getElementById('saveStoreBtn').addEventListener('click', async () => {
       A.settings.storeName = document.getElementById('sStoreName').value.trim();
@@ -263,14 +287,23 @@
       persist('admin_settings', A.settings);
       const sync = window.__brasaCatalogSync;
       if (sync) {
-        const res = await sync.saveSettingsKey('store_info', {
-          storeName: A.settings.storeName, phone: A.settings.phone, address: A.settings.address,
-          addressStreet: A.settings.addressStreet, addressNeighborhood: A.settings.addressNeighborhood, addressCep: A.settings.addressCep, addressCity: A.settings.addressCity,
-          instagram: A.settings.instagram, minOrder: A.settings.minOrder,
-        });
+        const res = await sync.saveSettingsKey('store_info', buildStoreInfoPayload());
         if (!res.ok) { showToast('Salvo localmente, mas falhou ao gravar no banco: ' + (res.error && res.error.message || ''), 'error'); return; }
       }
       showToast('Dados da loja atualizados');
+    });
+
+    const saveHeroBtn = document.getElementById('saveHeroBtn');
+    if (saveHeroBtn) saveHeroBtn.addEventListener('click', async () => {
+      A.settings.heroTitle = document.getElementById('sHeroTitle').value.trim();
+      A.settings.heroSubtitle = document.getElementById('sHeroSubtitle').value.trim();
+      persist('admin_settings', A.settings);
+      const sync = window.__brasaCatalogSync;
+      if (sync) {
+        const res = await sync.saveSettingsKey('store_info', buildStoreInfoPayload());
+        if (!res.ok) { showToast('Salvo localmente, mas falhou ao gravar no banco: ' + (res.error && res.error.message || ''), 'error'); return; }
+      }
+      showToast('Banner de topo atualizado');
     });
 
     let pendingGeo = A.settings.deliveryGeo || null;
