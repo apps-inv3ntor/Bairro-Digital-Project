@@ -231,9 +231,19 @@
       const storeInfoRow = (settingsSnap || []).find(r => r.key === 'store_info');
       const newStoreInfo = Object.assign({}, storeInfoRow ? storeInfoRow.value : {}, {
         storeName: preset.business_name, logoUrl: preset.logo_url,
+        heroTitle: preset.banner_title, heroSubtitle: preset.banner_description,
       });
       await window.sb.from('store_settings').upsert({ key: 'store_info', value: newStoreInfo }, { onConflict: 'key' });
       await window.sb.from('store_settings').upsert({ key: 'theme', value: { backgroundColor: preset.background_color } }, { onConflict: 'key' });
+
+      // 7b. Banner de Oferta (o card do meio da página) — só o texto pequeno (eyebrow)
+      // e o código do cupom exibido mudam sozinhos; título, botão e pra-onde-leva
+      // continuam do jeito que o admin configurou na mão, nunca são sobrescritos.
+      const promoBannerRow = (settingsSnap || []).find(r => r.key === 'promo_banner');
+      const newPromoBanner = Object.assign({}, promoBannerRow ? promoBannerRow.value : {}, {
+        eyebrow: preset.banner_eyebrow, couponCode: preset.coupon_code,
+      });
+      await window.sb.from('store_settings').upsert({ key: 'promo_banner', value: newPromoBanner }, { onConflict: 'key' });
 
       // 8. Banner grande: some com o de um terraform anterior, desativa qualquer outro banner
       // (pra não misturar identidade visual de negócios diferentes), e cria o novo, ativo, prioridade máxima.
