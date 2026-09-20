@@ -105,9 +105,7 @@
     });
   }
 
-  // Título/subtítulo do banner de topo (H1 grande) — antes ficavam 100% fixos
-  // no HTML. heroTitle vem com "\n" separando as 2 linhas quando tiver; se
-  // vier só uma linha, mostra só ela.
+  // Título/subtítulo do banner de topo (H1 grande)
   function renderHero(storeInfo) {
     if (!storeInfo) return;
     const titleEl = document.getElementById('heroTitle');
@@ -120,6 +118,31 @@
     }
     if (subtitleEl && storeInfo.heroSubtitle) {
       subtitleEl.textContent = storeInfo.heroSubtitle;
+    }
+  }
+
+  // Texto do rodapé customizável (copyright + link) — configurado em
+  // Configurações → Texto do Rodapé. Se não tiver nada configurado, mantém
+  // o copyright automático de sempre (nome da loja) e some com a linha do link.
+  function renderFooterText(footerText, storeInfo) {
+    const copyEl = document.getElementById('footerCopy');
+    const linkWrapEl = document.getElementById('footerLinkWrap');
+    const linkEl = document.getElementById('footerLink');
+    if (copyEl) {
+      if (footerText && footerText.copyright) {
+        copyEl.textContent = footerText.copyright;
+      } else if (storeInfo && storeInfo.storeName) {
+        copyEl.textContent = `© ${new Date().getFullYear()} ${storeInfo.storeName}. Todos os direitos reservados.`;
+      }
+    }
+    if (linkWrapEl && linkEl) {
+      if (footerText && footerText.linkUrl) {
+        linkEl.href = footerText.linkUrl;
+        linkEl.textContent = footerText.linkUrl;
+        linkWrapEl.style.display = '';
+      } else {
+        linkWrapEl.style.display = 'none';
+      }
     }
   }
 
@@ -298,9 +321,11 @@
         if (themeRow && themeRow.value && themeRow.value.backgroundColor) {
           document.documentElement.style.setProperty('--bg-base', themeRow.value.backgroundColor);
         }
+        var footerTextRow = settingsRows.find(r => r.key === 'footer_text');
       }
       renderFooter(storeInfoValue, hoursValue, paymentsValue);
       renderHero(storeInfoValue);
+      renderFooterText(footerTextRow ? footerTextRow.value : null, storeInfoValue);
 
       if (typeof window.__brasaRefreshMenu === 'function') window.__brasaRefreshMenu();
       if (typeof window.__brasaRefreshCart === 'function') window.__brasaRefreshCart();

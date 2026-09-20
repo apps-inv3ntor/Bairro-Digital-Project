@@ -110,6 +110,8 @@
       banner_eyebrow: preset.banner_eyebrow, banner_title: preset.banner_title,
       banner_description: preset.banner_description, coupon_code: preset.coupon_code,
       coupon_label: preset.coupon_label, background_color: preset.background_color,
+      section2_title: preset.section2_title, section3_title: preset.section3_title,
+      offer_title: preset.offer_title,
       products: preset.products,
     }, { onConflict: 'business_name' });
     if (error) { showToast('Erro ao importar: ' + error.message, 'error'); return; }
@@ -227,7 +229,8 @@
         }
       }
 
-      // 7. Nome da loja + logo (dentro de store_info) e cor de fundo (chave nova "theme")
+      // 7. Nome da loja + logo + H1/subtítulo do Banner de Topo (dentro de store_info) e
+      // cor de fundo (chave "theme")
       const storeInfoRow = (settingsSnap || []).find(r => r.key === 'store_info');
       const newStoreInfo = Object.assign({}, storeInfoRow ? storeInfoRow.value : {}, {
         storeName: preset.business_name, logoUrl: preset.logo_url,
@@ -236,12 +239,18 @@
       await window.sb.from('store_settings').upsert({ key: 'store_info', value: newStoreInfo }, { onConflict: 'key' });
       await window.sb.from('store_settings').upsert({ key: 'theme', value: { backgroundColor: preset.background_color } }, { onConflict: 'key' });
 
-      // 7b. Banner de Oferta (o card do meio da página) — só o texto pequeno (eyebrow)
-      // e o código do cupom exibido mudam sozinhos; título, botão e pra-onde-leva
-      // continuam do jeito que o admin configurou na mão, nunca são sobrescritos.
+      // 7b. Faixa 2 e 3 da página inicial (títulos configuráveis por preset)
+      const homeSectionsRow = (settingsSnap || []).find(r => r.key === 'home_sections');
+      const newHomeSections = Object.assign({}, homeSectionsRow ? homeSectionsRow.value : {});
+      newHomeSections.section2 = Object.assign({}, newHomeSections.section2, { title: preset.section2_title });
+      newHomeSections.section3 = Object.assign({}, newHomeSections.section3, { title: preset.section3_title });
+      await window.sb.from('store_settings').upsert({ key: 'home_sections', value: newHomeSections }, { onConflict: 'key' });
+
+      // 7c. Banner de Oferta — eyebrow, código do cupom exibido, e agora também o
+      // Título Grande (offer_title). Botão e pra-onde-leva continuam manuais.
       const promoBannerRow = (settingsSnap || []).find(r => r.key === 'promo_banner');
       const newPromoBanner = Object.assign({}, promoBannerRow ? promoBannerRow.value : {}, {
-        eyebrow: preset.banner_eyebrow, couponCode: preset.coupon_code,
+        eyebrow: preset.banner_eyebrow, couponCode: preset.coupon_code, title: preset.offer_title,
       });
       await window.sb.from('store_settings').upsert({ key: 'promo_banner', value: newPromoBanner }, { onConflict: 'key' });
 

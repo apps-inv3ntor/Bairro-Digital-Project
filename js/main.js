@@ -99,9 +99,9 @@
       const section2Items = PRODUCTS.filter(p => homeSections.section2.categoryIds.includes(p.category));
       const section3Items = PRODUCTS.filter(p => homeSections.section3.categoryIds.includes(p.category));
 
-      html += carouselSection('mais-pedidos', 'Mais pedidos', highlights);
       html += carouselSection('home-secao-2', homeSections.section2.title, section2Items);
       html += carouselSection('home-secao-3', homeSections.section3.title, section3Items);
+      html += carouselSection('mais-pedidos', 'Mais pedidos', highlights);
     } else if (activeCategory === 'mais-pedidos') {
       html += gridSection('mais-pedidos', 'Mais pedidos', PRODUCTS.filter(p => p.highlight));
     } else {

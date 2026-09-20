@@ -324,6 +324,7 @@
           else if (row.key === 'delivery_geo') A.settings.deliveryGeo = row.value;
           else if (row.key === 'home_sections') A.settings.homeSections = row.value;
           else if (row.key === 'promo_banner') A.settings.promoBanner = row.value;
+          else if (row.key === 'footer_text') A.settings.footerText = row.value;
           else if (row.key === 'faq_items') A.settings.faq = row.value;
           else if (row.key === 'how_it_works') A.settings.howItWorks = row.value;
         });
