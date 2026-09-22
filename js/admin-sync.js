@@ -324,11 +324,17 @@
           else if (row.key === 'delivery_geo') A.settings.deliveryGeo = row.value;
           else if (row.key === 'home_sections') A.settings.homeSections = row.value;
           else if (row.key === 'promo_banner') A.settings.promoBanner = row.value;
-          else if (row.key === 'footer_text') A.settings.footerText = row.value;
           else if (row.key === 'faq_items') A.settings.faq = row.value;
           else if (row.key === 'how_it_works') A.settings.howItWorks = row.value;
         });
         A.persist('admin_settings', A.settings);
+
+        // Logo e nome no topo da barra lateral — antes ficavam fixos em "BRASA
+        // BURGER" mesmo depois de terraformar pra outro delivery.
+        const sidebarLogoEl = document.getElementById('sidebarLogo');
+        const sidebarBrandTextEl = document.getElementById('sidebarBrandText');
+        if (sidebarLogoEl && A.settings.logoUrl) sidebarLogoEl.src = A.settings.logoUrl;
+        if (sidebarBrandTextEl && A.settings.storeName) sidebarBrandTextEl.textContent = A.settings.storeName.toUpperCase();
       }
       A.showToast('Catálogo e configurações carregados do banco de dados real ✅');
       A.goToView(A.currentView || 'visao-geral');
