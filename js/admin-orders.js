@@ -239,11 +239,9 @@
           </div>
         </div>
       </div>
-      <div class="drawer__foot" style="flex-wrap:wrap;">
+      <div class="drawer__foot">
         ${nextStage ? `<button class="btn btn-primary" id="advanceStatusBtn" style="flex:1; justify-content:center;">Avançar para "${ORDER_TIMELINE_LABELS[nextStage]}"</button>` : `<span class="pill pill-green" style="padding:10px 16px;">Pedido concluído</span>`}
         <button class="btn btn-secondary" id="cancelOrderBtn">Cancelar pedido</button>
-        <button class="btn btn-secondary" id="printKitchenBtn" style="flex-basis:100%; justify-content:center;">🖨️ Imprimir cupom da cozinha</button>
-        <button class="btn btn-secondary" id="printCustomerBtn" style="flex-basis:100%; justify-content:center;">🧾 Imprimir cupom do cliente</button>
       </div>`;
 
     document.getElementById('closeDrawerBtn').addEventListener('click', A.closeAllOverlays);
@@ -281,8 +279,6 @@
         },
       });
     });
-    document.getElementById('printKitchenBtn').addEventListener('click', () => window.__brasaPrintKOT(o.id));
-    document.getElementById('printCustomerBtn').addEventListener('click', () => window.__brasaPrintCustomerReceipt(o.id));
   }
 
   /* ---------------- Diálogo de confirmação genérico (usado em várias views) ---------------- */
