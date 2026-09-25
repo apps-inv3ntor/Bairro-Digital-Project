@@ -123,12 +123,16 @@
       area: o.delivery_areas ? o.delivery_areas.name : '',
       address: o.address || '',
       payment: (PAYMENT_LABELS[o.payment_method] || o.payment_method) + (o.payment_status === 'pago' ? ' (pago)' : ''),
+      paymentMethod: o.payment_method,
       paymentStatus: o.payment_status,
+      couponCode: o.coupon_code || '',
       items: (o.order_items || []).map(i => ({
         qty: i.quantity, name: i.product_name,
         observation: i.observation || '',
         extras: Array.isArray(i.selected_extras) ? i.selected_extras : [],
         removals: Array.isArray(i.selected_removals) ? i.selected_removals : [],
+        unitPrice: Number(i.unit_price || 0),
+        lineTotal: Number(i.line_total || 0),
       })),
       subtotal: Number(o.subtotal), discount: Number(o.discount), fee: Number(o.delivery_fee), total: Number(o.total),
     };
@@ -245,7 +249,7 @@
     const A = window.__brasaAdmin;
     const { data: rawOrders, error } = await window.sb
       .from('orders')
-      .select('*, delivery_areas(name), order_items(product_name, quantity, observation, selected_extras, selected_removals)')
+      .select('*, delivery_areas(name), order_items(product_name, quantity, observation, selected_extras, selected_removals, unit_price, line_total)')
       .order('created_at', { ascending: false });
     if (error || !rawOrders) return;
     const fresh = rawOrders.map(orderFromDb);
@@ -291,7 +295,7 @@
         window.sb.from('delivery_areas').select('*'),
         window.sb.from('banners').select('*'),
         window.sb.from('store_settings').select('*'),
-        window.sb.from('orders').select('*, delivery_areas(name), order_items(product_name, quantity, observation, selected_extras, selected_removals)').order('created_at', { ascending: false }),
+        window.sb.from('orders').select('*, delivery_areas(name), order_items(product_name, quantity, observation, selected_extras, selected_removals, unit_price, line_total)').order('created_at', { ascending: false }),
         window.sb.from('admin_users').select('*').order('created_at'),
         window.sb.from('insumos').select('*').order('nome'),
       ]);
@@ -329,8 +333,8 @@
         });
         A.persist('admin_settings', A.settings);
 
-        // Logo e nome no topo da barra lateral — antes ficavam fixos em "BRASA
-        // BURGER" mesmo depois de terraformar pra outro delivery.
+        // Logo e nome no topo da barra lateral — sem isso ficava fixo em
+        // "BRASA BURGER" mesmo depois de terraformar pra outro delivery.
         const sidebarLogoEl = document.getElementById('sidebarLogo');
         const sidebarBrandTextEl = document.getElementById('sidebarBrandText');
         if (sidebarLogoEl && A.settings.logoUrl) sidebarLogoEl.src = A.settings.logoUrl;
