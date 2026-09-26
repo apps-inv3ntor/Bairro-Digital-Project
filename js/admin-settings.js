@@ -25,7 +25,9 @@
         <button class="tab-btn" data-tab="horarios">Horário de funcionamento</button>
         <button class="tab-btn" data-tab="pagamentos">Pagamentos</button>
         <button class="tab-btn" data-tab="home">Página inicial</button>
+        <button class="tab-btn" data-tab="topo">Banner de Topo</button>
         <button class="tab-btn" data-tab="banner">Banner de oferta</button>
+        <button class="tab-btn" data-tab="rodape">Texto do Rodapé</button>
         <button class="tab-btn" data-tab="faq">Perguntas frequentes</button>
         <button class="tab-btn" data-tab="usuarios">Usuários e permissões</button>
         <button class="tab-btn" data-tab="notificacoes">Notificações</button>
@@ -112,6 +114,15 @@
         </div>
       </div>
 
+      <div class="tab-panel" id="tabTopo">
+        <div class="card" style="padding:22px 24px; max-width:560px;">
+          <p class="muted" style="margin:0 0 14px;">Textos do banner grande do topo do site — o título de impacto (H1) e o subtítulo logo abaixo. Não mexe no selo de cupom (isso vem do Terraformar / dos banners cadastrados) nem no Banner de Oferta (esse é o card do meio da página, na outra aba).</p>
+          <div class="field"><label>Título de impacto (use quebra de linha pra 2 linhas)</label><textarea id="sHeroTitle" rows="2">${escapeHtml(A.settings.heroTitle || '')}</textarea></div>
+          <div class="field"><label>Subtítulo</label><textarea id="sHeroSubtitle" rows="2">${escapeHtml(A.settings.heroSubtitle || '')}</textarea></div>
+          <button class="btn btn-primary" id="saveHeroBtn">Salvar banner de topo</button>
+        </div>
+      </div>
+
       <div class="tab-panel" id="tabBanner">
         <div class="card" style="padding:22px 24px; max-width:560px;">
           <div class="field-inline" style="margin-bottom:14px;"><span class="fi-label">Banner ativo</span><button class="toggle ${A.settings.promoBanner.active ? 'is-on' : ''}" id="bannerActiveToggle" type="button"></button></div>
@@ -131,6 +142,15 @@
           </div>
           <p class="muted" style="font-size:0.8rem; margin:4px 0 14px;">Esse código é só o texto mostrado no banner (o "selo") — pra ele realmente dar desconto, crie um cupom de verdade com esse mesmo código em Marketing → Cupons.</p>
           <button class="btn btn-primary" id="saveBannerBtn">Salvar banner</button>
+        </div>
+      </div>
+
+      <div class="tab-panel" id="tabRodape">
+        <div class="card" style="padding:22px 24px; max-width:560px;">
+          <p class="muted" style="margin:0 0 14px;">Textos das 2 linhas no rodapé do site. Se deixar em branco, o copyright volta a usar o nome da loja automaticamente, e a linha do link some.</p>
+          <div class="field"><label>Mensagem de copyright</label><input type="text" id="sFooterCopyright" placeholder="© 2026 Sua Loja. Todos os direitos reservados." value="${escapeHtml(A.settings.footerText.copyright || '')}"></div>
+          <div class="field"><label>Link do site (endereço completo, com https://)</label><input type="text" id="sFooterLinkUrl" placeholder="https://www.seusite.com.br" value="${escapeHtml(A.settings.footerText.linkUrl || '')}"></div>
+          <button class="btn btn-primary" id="saveFooterTextBtn">Salvar rodapé</button>
         </div>
       </div>
 
@@ -233,9 +253,23 @@
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('is-active'));
       document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('is-active'));
       btn.classList.add('is-active');
-      const map = { loja: 'tabLoja', horarios: 'tabHorarios', pagamentos: 'tabPagamentos', home: 'tabHome', banner: 'tabBanner', faq: 'tabFaq', usuarios: 'tabUsuarios', notificacoes: 'tabNotificacoes' };
+      const map = { loja: 'tabLoja', horarios: 'tabHorarios', pagamentos: 'tabPagamentos', home: 'tabHome', topo: 'tabTopo', banner: 'tabBanner', rodape: 'tabRodape', faq: 'tabFaq', usuarios: 'tabUsuarios', notificacoes: 'tabNotificacoes' };
       document.getElementById(map[btn.dataset.tab]).classList.add('is-active');
     });
+
+    // Sempre manda TODOS os campos conhecidos de store_info, mesmo os que a tela
+    // que está salvando não edita (logoUrl, heroTitle, heroSubtitle) — saveSettingsKey
+    // sobrescreve o valor inteiro no banco, não faz merge, então esquecer um campo
+    // aqui apaga ele de vez.
+    function buildStoreInfoPayload() {
+      return {
+        storeName: A.settings.storeName, phone: A.settings.phone, address: A.settings.address,
+        addressStreet: A.settings.addressStreet, addressNeighborhood: A.settings.addressNeighborhood,
+        addressCep: A.settings.addressCep, addressCity: A.settings.addressCity,
+        instagram: A.settings.instagram, minOrder: A.settings.minOrder,
+        logoUrl: A.settings.logoUrl, heroTitle: A.settings.heroTitle, heroSubtitle: A.settings.heroSubtitle,
+      };
+    }
 
     document.getElementById('saveStoreBtn').addEventListener('click', async () => {
       A.settings.storeName = document.getElementById('sStoreName').value.trim();
@@ -250,15 +284,25 @@
       persist('admin_settings', A.settings);
       const sync = window.__brasaCatalogSync;
       if (sync) {
-        const res = await sync.saveSettingsKey('store_info', {
-          storeName: A.settings.storeName, phone: A.settings.phone, address: A.settings.address,
-          addressStreet: A.settings.addressStreet, addressNeighborhood: A.settings.addressNeighborhood, addressCep: A.settings.addressCep, addressCity: A.settings.addressCity,
-          instagram: A.settings.instagram, minOrder: A.settings.minOrder,
-        });
+        const res = await sync.saveSettingsKey('store_info', buildStoreInfoPayload());
         if (!res.ok) { showToast('Salvo localmente, mas falhou ao gravar no banco: ' + (res.error && res.error.message || ''), 'error'); return; }
       }
       showToast('Dados da loja atualizados');
     });
+
+    const saveHeroBtn = document.getElementById('saveHeroBtn');
+    if (saveHeroBtn) saveHeroBtn.addEventListener('click', async () => {
+      A.settings.heroTitle = document.getElementById('sHeroTitle').value.trim();
+      A.settings.heroSubtitle = document.getElementById('sHeroSubtitle').value.trim();
+      persist('admin_settings', A.settings);
+      const sync = window.__brasaCatalogSync;
+      if (sync) {
+        const res = await sync.saveSettingsKey('store_info', buildStoreInfoPayload());
+        if (!res.ok) { showToast('Salvo localmente, mas falhou ao gravar no banco: ' + (res.error && res.error.message || ''), 'error'); return; }
+      }
+      showToast('Banner de topo atualizado');
+    });
+
 
     document.querySelectorAll('[data-day-toggle]').forEach(t => t.addEventListener('click', function () {
       this.classList.toggle('is-on');
@@ -376,6 +420,21 @@
         if (!res.ok) { showToast('Salvo localmente, mas falhou ao gravar no banco: ' + (res.error && res.error.message || ''), 'error'); return; }
       }
       showToast('Banner de oferta atualizado');
+    });
+
+    const saveFooterTextBtn = document.getElementById('saveFooterTextBtn');
+    if (saveFooterTextBtn) saveFooterTextBtn.addEventListener('click', async () => {
+      A.settings.footerText = {
+        copyright: document.getElementById('sFooterCopyright').value.trim(),
+        linkUrl: document.getElementById('sFooterLinkUrl').value.trim(),
+      };
+      persist('admin_settings', A.settings);
+      const sync = window.__brasaCatalogSync;
+      if (sync) {
+        const res = await sync.saveSettingsKey('footer_text', A.settings.footerText);
+        if (!res.ok) { showToast('Salvo localmente, mas falhou ao gravar no banco: ' + (res.error && res.error.message || ''), 'error'); return; }
+      }
+      showToast('Rodapé atualizado');
     });
 
     function rerenderFaqList() {
