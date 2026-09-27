@@ -126,6 +126,7 @@
       paymentMethod: o.payment_method,
       paymentStatus: o.payment_status,
       couponCode: o.coupon_code || '',
+      cancelReason: o.cancel_reason || '',
       items: (o.order_items || []).map(i => ({
         qty: i.quantity, name: i.product_name,
         observation: i.observation || '',
@@ -138,9 +139,10 @@
     };
   }
 
-  async function updateOrderStatusRemote(dbId, status, order) {
+  async function updateOrderStatusRemote(dbId, status, order, cancelReason) {
     if (!window.SUPABASE_READY) return { ok: true };
     const patch = { order_status: status };
+    if (status === 'cancelado' && cancelReason) patch.cancel_reason = cancelReason;
     // Pedido em dinheiro: "confirmado pela loja" é o momento em que consideramos o pagamento
     // recebido (ele é pago na entrega/retirada, não online) — é aqui que o estoque é baixado.
     const isCashFirstConfirm = order && order.payment && order.payment.startsWith('Dinheiro') && status === 'confirmado' && order.paymentStatus !== 'pago';

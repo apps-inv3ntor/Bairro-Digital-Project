@@ -14,8 +14,8 @@
 <div class="login-screen" id="loginScreen">
   <div class="login-card">
     <div class="brand-mark">
-      <img src="assets/brand/logo-icon_admin.png" alt="Brasa Burger Co.">
-      <span>ACESSO <em>ADMIN</em></span>
+      <img src="assets/brand/logo-icon.png" alt="Brasa Burger Co.">
+      <span>BRASA <em>ADMIN</em></span>
     </div>
     <h1>Painel administrativo</h1>
     <p class="sub">Entre para gerenciar pedidos, cardápio e configurações.</p>
@@ -69,6 +69,7 @@
 
     <nav class="sidebar__nav" id="sidebarNav">
       <button class="nav-item is-active" data-view="visao-geral"><span class="ic">📊</span><span class="nav-label">Visão geral</span></button>
+      <button class="nav-item" data-view="dashboard"><span class="ic">📈</span><span class="nav-label">Dashboard</span></button>
       <button class="nav-item" data-view="pedidos"><span class="ic">🧾</span><span class="nav-label">Pedidos</span><span class="nav-badge" id="navOrdersBadge">0</span></button>
       <button class="nav-item" data-view="produtos"><span class="ic">🍔</span><span class="nav-label">Produtos</span></button>
       <button class="nav-item" data-view="categorias"><span class="ic">🗂️</span><span class="nav-label">Categorias</span></button>
@@ -139,6 +140,7 @@
 <div class="toast-stack" id="toastStack"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="js/supabase-config.js"></script>
 <script src="js/supabase-client.js"></script>
 <script src="js/admin-data.js"></script>
@@ -146,6 +148,7 @@
 <script src="js/admin-sync.js"></script>
 <script src="js/admin-orders.js"></script>
 <script src="js/admin-print.js"></script>
+<script src="js/admin-dashboard.js"></script>
 <script src="js/admin-catalog.js"></script>
 <script src="js/admin-inventory.js"></script>
 <script src="js/admin-marketing.js"></script>

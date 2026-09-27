@@ -564,3 +564,22 @@ h1, h2, h3, h4 {
   .kanban-wrap { gap: 12px; }
   .kanban-col { min-width: 240px; }
 }
+
+/* ============================================================
+   Dashboard (menu novo) — não altera nenhuma classe já existente
+   ============================================================ */
+.dash-kpi-row { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 4px; }
+.dash-kpi { background: #fff; border: 1px solid #ECE1D6; border-radius: 10px; padding: 14px 20px; flex: 1; min-width: 180px; }
+.dash-kpi__label { display: block; font-size: 0.8rem; color: #7A6A5C; margin-bottom: 6px; }
+.dash-kpi__value { font-size: 1.5rem; font-weight: 700; color: #B8410A; }
+.dash-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+.dash-card h3 { margin: 0 0 12px; font-size: 1rem; }
+.dash-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.dash-table th { text-align: left; padding: 6px 8px; border-bottom: 2px solid #eee; color: #7A6A5C; font-size: 0.8rem; }
+.dash-table td { padding: 6px 8px; border-bottom: 1px solid #f2f2f2; }
+.heatmap-wrap { overflow-x: auto; }
+.heatmap-table { border-collapse: collapse; font-size: 0.7rem; }
+.heatmap-table th { padding: 2px 4px; color: #7A6A5C; font-weight: 400; }
+.heatmap-daylabel { padding-right: 8px; font-size: 0.75rem; color: #7A6A5C; white-space: nowrap; }
+.heatmap-cell { width: 14px; height: 16px; border-radius: 2px; }
+@media (max-width: 900px) { .dash-grid-2 { grid-template-columns: 1fr; } }

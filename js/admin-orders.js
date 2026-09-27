@@ -262,6 +262,10 @@
       showToast(`Pedido #${o.id} avançou para "${ORDER_TIMELINE_LABELS[nextStage]}"`);
     });
     document.getElementById('cancelOrderBtn').addEventListener('click', () => {
+      // Pergunta o motivo ANTES de abrir a confirmação — assim quem desistir de
+      // cancelar no prompt nem chega a ver a caixa de confirmação.
+      const cancelReason = window.prompt('Motivo do cancelamento (fica salvo no relatório de vendas — pode deixar em branco):', '');
+      if (cancelReason === null) return; // clicou em "Cancelar" do prompt, desistiu
       showConfirm({
         icon: '⚠️', title: 'Cancelar este pedido?',
         text: `O pedido #${o.id} de ${o.customer} será marcado como cancelado. Essa ação não pode ser desfeita.`,
@@ -274,7 +278,7 @@
           renderKanban();
           const sync = window.__brasaCatalogSync;
           if (sync && o._dbId) {
-            const res = await sync.updateOrderStatusRemote(o._dbId, 'cancelado');
+            const res = await sync.updateOrderStatusRemote(o._dbId, 'cancelado', o, cancelReason.trim() || null);
             if (!res.ok) { showToast('Cancelado localmente, mas falhou ao gravar no banco: ' + (res.error && res.error.message || ''), 'error'); return; }
           }
           showToast('Pedido cancelado');
