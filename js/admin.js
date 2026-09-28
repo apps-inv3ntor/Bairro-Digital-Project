@@ -96,6 +96,8 @@
       active: true, eyebrow: 'Oferta da brasa', title: '2 burgers.\n1 noite memorável.',
       buttonText: 'Ver oferta →', linkTarget: '#cardapio', couponLabel: 'Cupom', couponCode: 'QUARTA',
     },
+    // Texto do rodapé — copyright e link do site, editáveis em Configurações → Texto do Rodapé
+    footerText: { copyright: '', linkUrl: '' },
     // Perguntas frequentes editáveis — as duas primeiras já nascem com o texto certo, calculado a
     // partir do horário/pagamento configurado (mas depois de salvas, o texto é livre pra editar,
     // não fica "amarrado" magicamente às outras telas — evita comportamento surpreendente).
