@@ -60,7 +60,51 @@
       motivos[m] = (motivos[m] || 0) + 1;
     });
 
-    return { faturamento, ticketMedio, taxaCancelamento, totalPedidos: inPeriod.length, cancelCount: cancelledOrders.length, byPayment, heatmap, motivos };
+    return { faturamento, ticketMedio, taxaCancelamento, totalPedidos: inPeriod.length, cancelCount: cancelledOrders.length, byPayment, heatmap, motivos, orders: validOrders };
+  }
+
+  function fmtDateTime(ts) {
+    return new Date(ts).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  }
+
+  function exportRelatorioCompletoPdf(vendasData) {
+    const rows = vendasData.orders.slice().sort((a, b) => a.createdAt - b.createdAt).map(o => {
+      const produtos = o.items.map(i => `${i.qty}x ${escapeHtml(i.name)}`).join('<br>');
+      const enderecoCompleto = [o.address, o.area].filter(Boolean).join(' — ');
+      return `<tr>
+        <td>${fmtDateTime(o.createdAt)}</td>
+        <td>${escapeHtml(o.customer || '')}</td>
+        <td>${escapeHtml(o.phone || '')}</td>
+        <td>${produtos}</td>
+        <td>${escapeHtml(o.payment || '')}</td>
+        <td>${escapeHtml(o.area || '—')}</td>
+        <td>${escapeHtml(enderecoCompleto || '—')}</td>
+        <td style="text-align:right; white-space:nowrap;">${formatBRL(o.total)}</td>
+      </tr>`;
+    }).join('');
+
+    const win = window.open('', '_blank', 'width=1100,height=750');
+    if (!win) { A.showToast('Permita pop-ups pra exportar o relatório.', 'error'); return; }
+    win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Relatório Completo de Vendas</title>
+      <style>
+        body{font-family:Arial,sans-serif;color:#222;padding:24px;}
+        h1{color:#b8410a;border-bottom:2px solid #ff7a1a;padding-bottom:8px;font-size:20px;}
+        table{width:100%;border-collapse:collapse;margin:14px 0;font-size:11px;}
+        th{background:#2b1a0f;color:#fff;text-align:left;padding:6px 7px;}
+        td{padding:6px 7px;border-bottom:1px solid #eee;vertical-align:top;}
+        tr:nth-child(even) td{background:#faf8f6;}
+        @media print { thead { display: table-header-group; } }
+      </style></head><body>
+      <h1>Relatório Completo de Vendas — ${escapeHtml(A.settings.storeName || '')}</h1>
+      <p>Período: últimos ${dashPeriod === 'total' ? 'todos os registros' : dashPeriod} — ${vendasData.orders.length} pedido(s). Gerado em ${new Date().toLocaleString('pt-BR')}.</p>
+      <table>
+        <thead><tr><th>Data/Hora do pedido</th><th>Cliente</th><th>Telefone</th><th>Produtos</th><th>Forma de pagamento</th><th>Bairro</th><th>Endereço</th><th>Total</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="8">Nenhum pedido no período</td></tr>'}</tbody>
+      </table>
+      <p style="font-size:10px; color:#777;">Data/Hora se refere ao momento em que o pedido foi criado (o sistema ainda não guarda o horário exato da confirmação do pagamento separadamente).</p>
+      <script>window.onload=function(){window.print();}<\/script>
+      </body></html>`);
+    win.document.close();
   }
 
   function heatmapHtml(heatmap) {
@@ -187,6 +231,7 @@
           <option value="total">Desde o início</option>
         </select>
         <button class="btn btn-secondary" id="dashExportBtn">📄 Exportar PDF</button>
+        <button class="btn btn-secondary" id="dashExportFullBtn">📋 Relatório completo</button>
       </div>
       <div id="dashTabContent"></div>
     `;
@@ -196,14 +241,17 @@
       const active = document.querySelector('#dashTabs .tab-btn.is-active').dataset.dtab;
       const content = document.getElementById('dashTabContent');
       const exportBtn = document.getElementById('dashExportBtn');
+      const exportFullBtn = document.getElementById('dashExportFullBtn');
       if (active === 'vendas') {
         lastVendasData = renderVendasTab(content);
         exportBtn.style.display = '';
+        exportFullBtn.style.display = '';
       } else {
         destroyCharts();
         const nome = active === 'insumos' ? 'Insumos' : 'Produtos';
         content.innerHTML = `<div class="card dash-card"><h3>Relatório de ${nome}</h3><p class="muted">Essa aba está na próxima entrega — ainda não coletamos todo o histórico necessário pra montar esse relatório com precisão. Assim que estiver pronta, ela aparece aqui automaticamente.</p></div>`;
         exportBtn.style.display = 'none';
+        exportFullBtn.style.display = 'none';
       }
     }
 
@@ -214,6 +262,7 @@
       renderActiveTab();
     }));
     document.getElementById('dashExportBtn').addEventListener('click', () => { if (lastVendasData) exportVendasPdf(lastVendasData); });
+    document.getElementById('dashExportFullBtn').addEventListener('click', () => { if (lastVendasData) exportRelatorioCompletoPdf(lastVendasData); });
 
     renderActiveTab();
   };
