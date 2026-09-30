@@ -103,6 +103,7 @@
           <div class="field"><label>Capacidade máxima</label><input type="number" min="0.01" step="0.01" id="fInsumoMaxima" value="${i ? i.capacidadeMaxima : 100}"><div class="field-error-msg" id="errInsumoMaxima">Deve ser maior que zero.</div></div>
         </div>
         <div class="field"><label>Unidade de medida</label><input type="text" id="fInsumoUnidade" value="${i ? escapeHtml(i.unidadeMedida) : 'un'}" placeholder="Ex: un, g, ml, kg"></div>
+        <div class="field"><label>Custo por unidade de medida (R$) — opcional</label><input type="number" min="0" step="0.0001" id="fInsumoCusto" value="${i && i.custoUnitario !== null && i.custoUnitario !== undefined ? i.custoUnitario : ''}" placeholder="Ex: 0,04"><div class="muted" style="font-size:0.75rem;margin-top:4px;">Quanto custa 1 unidade de medida. Ex.: unidade “g” e o kg custa R$ 40 → informe 0,04. Usado na margem e no CMV do Dashboard.</div></div>
       </div>
       <div class="modal__foot">
         <button class="btn btn-secondary" id="cancelInsumoBtn">Cancelar</button>
@@ -120,11 +121,17 @@
       document.getElementById('errInsumoMaxima').classList.toggle('is-visible', maxErr);
       if (nomeErr || maxErr) return;
 
+      const custoRaw = document.getElementById('fInsumoCusto').value.trim().replace(',', '.');
+      const custo = custoRaw === '' ? null : parseFloat(custoRaw);
+      if (custo !== null && (!Number.isFinite(custo) || custo < 0)) { showToast('Custo inválido — use um número maior ou igual a zero.', 'error'); return; }
+      const prevCusto = i && i.custoUnitario !== undefined ? i.custoUnitario : null;
+
       const data = {
         nome, categoria: document.getElementById('fInsumoCategoria').value.trim(),
         quantidadeAtual: parseFloat(document.getElementById('fInsumoAtual').value) || 0,
         capacidadeMaxima: maxima,
         unidadeMedida: document.getElementById('fInsumoUnidade').value.trim() || 'un',
+        custoUnitario: custo,
       };
       const sync = window.__brasaCatalogSync;
       let insumoRef, isNew = false;
@@ -137,6 +144,11 @@
         const res = await sync.upsertInsumo(isNew ? null : insumoRef.id, insumoRef);
         if (res.ok && res.newId) { insumoRef.id = res.newId; persist('admin_insumos', A.insumos); }
         else if (!res.ok) { showToast('Salvo localmente, mas falhou ao gravar no banco: ' + (res.error && res.error.message || ''), 'error'); return; }
+        // Custo vai numa chamada separada: se a migração 0019 ainda não rodou, o resto do insumo já foi salvo normalmente.
+        if (window.SUPABASE_READY && custo !== prevCusto) {
+          const { error: custoErr } = await window.sb.from('insumos').update({ custo_unitario: custo }).eq('id', insumoRef.id);
+          if (custoErr) { showToast('Insumo salvo, mas o custo não foi gravado no banco (a migração 0019 já foi executada?): ' + custoErr.message, 'error'); return; }
+        }
       }
       showToast(isNew ? 'Insumo criado' : 'Insumo atualizado');
     });
@@ -158,6 +170,7 @@
       return;
     }
     const idx = Object.fromEntries(expected.map(h => [h, header.indexOf(h)]));
+    const custoIdx = header.indexOf('custo_unitario'); // coluna opcional
     const rows = lines.slice(1).map(line => {
       const cols = line.split(';');
       return {
@@ -166,6 +179,7 @@
         quantidade_atual: parseFloat(cols[idx.quantidade_atual]) || 0,
         capacidade_maxima: parseFloat(cols[idx.capacidade_maxima]) || 1,
         unidade_medida: cols[idx.unidade_medida]?.trim() || 'un',
+        ...(custoIdx >= 0 ? { custo_unitario: (() => { const v = parseFloat(String(cols[custoIdx] || '').trim().replace(',', '.')); return Number.isFinite(v) && v >= 0 ? v : null; })() } : {}),
       };
     }).filter(r => r.nome);
 

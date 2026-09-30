@@ -74,6 +74,7 @@
       id: i.id, nome: i.nome, categoria: i.categoria || '',
       quantidadeAtual: Number(i.quantidade_atual), capacidadeMaxima: Number(i.capacidade_maxima),
       unidadeMedida: i.unidade_medida,
+      custoUnitario: (i.custo_unitario !== null && i.custo_unitario !== undefined) ? Number(i.custo_unitario) : null,
     };
   }
   function insumoToDb(i) {
@@ -276,6 +277,9 @@
       A.persist('admin_insumos', A.insumos);
       if (A.currentView === 'estoque') A.goToView('estoque');
     }
+
+    // Dashboard: redesenha só o conteúdo da aba (e só se algo mudou), sem voltar ao topo
+    if (A.currentView === 'dashboard' && window.__brasaDashboardRefresh) window.__brasaDashboardRefresh();
   }
   function startOrdersPolling() {
     if (ordersPollTimer) return; // já rodando, evita duplicar
