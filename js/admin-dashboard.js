@@ -106,22 +106,44 @@
     win.document.close();
   }
 
+  // Cor do mapa de calor: amarelo → laranja → vermelho (quanto mais pedidos, mais quente)
+  function heatColor(t) {
+    const stops = [[255, 214, 10], [255, 122, 26], [229, 56, 59]];
+    const x = Math.min(1, Math.max(0, t)) * 2;
+    const i = Math.min(1, Math.floor(x)), f = x - i;
+    const from = stops[i], to = stops[i + 1];
+    return from.map((v, k) => Math.round(v + (to[k] - v) * f));
+  }
+
   function heatmapHtml(heatmap) {
     const dias = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-    const max = Math.max(1, ...heatmap.flat());
-    let html = '<div class="heatmap-wrap"><table class="heatmap-table"><thead><tr><th></th>';
-    for (let h = 0; h < 24; h += 2) html += `<th colspan="2">${h}h</th>`;
-    html += '</tr></thead><tbody>';
+    const diasLongos = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+    const max = Math.max(0, ...heatmap.flat());
+    if (!max) return '<p class="muted" style="margin:0;">Ainda não há pedidos no período para mostrar os horários de pico.</p>';
+    const plural = (n) => `${n} pedido${n === 1 ? '' : 's'}`;
+
+    // Maiores movimentos (até 3), pra dar a resposta pronta sem precisar caçar no gráfico
+    const slots = [];
+    heatmap.forEach((row, d) => row.forEach((v, h) => { if (v > 0) slots.push({ d, h, v }); }));
+    slots.sort((x, y) => y.v - x.v || x.d - y.d || x.h - y.h);
+    const peak = slots.slice(0, 3).map(s => `${dias[s.d]} ${s.h}h (${plural(s.v)})`).join(' · ');
+
+    let html = `<p class="hm-peak"><strong>Maior movimento:</strong> ${peak}</p>`;
+    html += '<div class="hm-wrap"><div class="hm-grid"><div></div>';
+    for (let h = 0; h < 24; h++) html += `<div class="hm-hour">${h}h</div>`;
     dias.forEach((label, dayIdx) => {
-      html += `<tr><td class="heatmap-daylabel">${label}</td>`;
+      html += `<div class="hm-day">${label}</div>`;
       for (let h = 0; h < 24; h++) {
         const v = heatmap[dayIdx][h];
-        const alpha = v ? 0.15 + 0.85 * (v / max) : 0.04;
-        html += `<td class="heatmap-cell" style="background:rgba(255,122,26,${alpha.toFixed(2)});" title="${label} ${h}h — ${v} pedido(s)"></td>`;
+        const title = `${diasLongos[dayIdx]} às ${h}h — ${plural(v)}`;
+        if (!v) { html += `<div class="hm-cell is-empty" title="${title}"></div>`; continue; }
+        const t = v / max;
+        const [r, g, b] = heatColor(t);
+        html += `<div class="hm-cell" style="background:rgb(${r},${g},${b});color:${t < 0.5 ? '#2b1a0f' : '#ffffff'};" title="${title}">${v}</div>`;
       }
-      html += '</tr>';
     });
-    html += '</tbody></table></div>';
+    html += '</div></div>';
+    html += `<div class="hm-legend"><span>menos pedidos</span><div class="hm-legend__bar"></div><span>mais pedidos (máx. ${max})</span></div>`;
     return html;
   }
 
@@ -154,7 +176,7 @@
 
       <div class="card dash-card" style="margin-top:16px;">
         <h3>Dias e horários de pico</h3>
-        <p class="muted" style="margin:0 0 10px;">Quanto mais forte a cor laranja, mais pedidos chegaram naquele dia/horário.</p>
+        <p class="muted" style="margin:0 0 10px;">Quanto mais quente a cor (do amarelo ao vermelho), mais pedidos chegaram naquele dia e horário.</p>
         ${heatmapHtml(d.heatmap)}
       </div>
 

@@ -297,6 +297,13 @@
       // categorias novas — ex: "Promoções" — nunca aparecerem por o menu ser fixo no HTML)
       if (cats && cats.length) renderCategoryNav(cats);
 
+      // Abre direto na 1ª categoria (na ordem definida em Categorias) que tenha produtos, em vez de "Todos".
+      // Se nenhuma categoria tiver produto, nada muda e o site continua abrindo em "Todos".
+      if (cats && cats.length && typeof window.__brasaSetInitialCategory === 'function') {
+        const firstWithProducts = cats.find(c => PRODUCTS.some(p => p.category === c.id));
+        if (firstWithProducts) window.__brasaSetInitialCategory(firstWithProducts.id);
+      }
+
       // Pedido mínimo geral e formas de pagamento habilitadas, se configurados
       let hoursValue = null, paymentsValue = null, storeInfoValue = null;
       if (!settingsErr && settingsRows && settingsRows.length) {

@@ -8,6 +8,7 @@
   let cart = loadJSON('brasa_cart', []); // [{lineId, productId, qty, selections:{groupId:[optionIds]}, obs, unitPrice}]
   let appliedCoupon = loadJSON('brasa_coupon', null);
   let activeCategory = 'todos';
+  let userPickedCategory = false; // vira true quando a pessoa clica numa categoria: a escolha dela nunca é sobrescrita pelo site-sync.js
   let currentProduct = null; // produto aberto no modal
   let currentSelections = {};
   let currentQty = 1;
@@ -1268,6 +1269,7 @@
     document.querySelectorAll('.chip').forEach(c => c.classList.remove('is-active'));
     chip.classList.add('is-active');
     activeCategory = chip.dataset.cat;
+    userPickedCategory = true;
     renderMenu();
     // Rola até o cardápio depois de trocar de categoria — sem isso, se a pessoa
     // estiver longe dessa seção (ex: lendo o FAQ), o conteúdo troca fora da tela
@@ -1378,5 +1380,15 @@
     const chip = document.querySelector(`.chip[data-cat="${categoryId}"]`);
     if (chip) chip.click();
     document.getElementById('cardapio').scrollIntoView({ behavior: 'smooth' });
+  };
+  // Chamado pelo js/site-sync.js quando as categorias reais chegam do Supabase: abre o site já na
+  // 1ª categoria (em vez de "Todos"). Não rola a tela e não redesenha (o site-sync chama
+  // __brasaRefreshMenu logo em seguida). Se a pessoa já clicou numa categoria antes disso,
+  // a escolha dela é mantida (só reaplica o destaque do chip, que foi reconstruído pelo site-sync).
+  window.__brasaSetInitialCategory = function (categoryId) {
+    const pickedStillExists = activeCategory === 'todos' || activeCategory === 'mais-pedidos' ||
+      !!document.querySelector(`.chip[data-cat="${activeCategory}"]`);
+    if (!userPickedCategory || !pickedStillExists) activeCategory = categoryId;
+    document.querySelectorAll('.chip').forEach(c => c.classList.toggle('is-active', c.dataset.cat === activeCategory));
   };
 })();
