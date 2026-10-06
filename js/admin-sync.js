@@ -266,7 +266,8 @@
     A.orders = fresh;
     A.persist('admin_orders', A.orders);
     A.updateOrdersBadge();
-    if (A.currentView === 'pedidos' || A.currentView === 'visao-geral') A.goToView(A.currentView);
+    if (A.currentView === 'pedidos' && typeof window.__brasaOrdersRefresh === 'function') window.__brasaOrdersRefresh();
+    else if (A.currentView === 'pedidos' || A.currentView === 'visao-geral') A.goToView(A.currentView);
     if (hasNewOrder) A.showToast('🔔 Novo pedido recebido!');
     if (hasNewlyPaid) A.showToast('✅ Um pagamento foi confirmado!');
 

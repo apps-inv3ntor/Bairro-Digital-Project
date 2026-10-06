@@ -9,6 +9,8 @@
   const KANBAN_COLS = ['novo', 'confirmado', 'preparo', 'entrega'];
   let activeFilter = 'todos';
   let searchTerm = '';
+  let searchRaw = '';          // texto da busca exatamente como digitado (a caixa sempre mostra o filtro ativo)
+  const openDays = new Set();  // dias abertos em "Dias anteriores" (sobrevive à atualização automática)
   let historyPeriod = 'semana';
   const PERIOD_DAYS = { dia: 1, semana: 7, quinzena: 15, mes: 30, trimestre: 90, semestre: 180, ano: 365, total: null };
   const PERIOD_LABELS = { dia: 'Ontem', semana: 'Última semana', quinzena: 'Última quinzena', mes: 'Último mês', trimestre: 'Último trimestre', semestre: 'Último semestre', ano: 'Último ano', total: 'Tudo' };
@@ -19,7 +21,7 @@
       <div class="toolbar">
         <div class="toolbar__search">
           <span>🔍</span>
-          <input type="text" id="orderSearch" placeholder="Buscar por cliente ou nº do pedido">
+          <input type="text" id="orderSearch" placeholder="Buscar por cliente, nº do pedido, telefone ou bairro" value="${escapeHtml(searchRaw)}" autocomplete="off">
         </div>
         <div class="filter-chip-row" id="orderModalityFilter">
           <button class="filter-chip is-active" data-mod="todos">Todos</button>
@@ -39,7 +41,8 @@
       <div id="historyAccordion"></div>`;
 
     document.getElementById('orderSearch').addEventListener('input', (e) => {
-      searchTerm = e.target.value.trim().toLowerCase();
+      searchRaw = e.target.value;
+      searchTerm = searchRaw.trim().toLowerCase();
       renderKanban();
       renderHistory();
     });
@@ -70,7 +73,8 @@
     const el = document.getElementById('historyAccordion');
     if (!el) return;
     const days = PERIOD_DAYS[historyPeriod];
-    const cutoff = days ? Date.now() - days * 24 * 3600000 : 0;
+    const searching = isSearching();
+    const cutoff = (days && !searching) ? Date.now() - days * 24 * 3600000 : 0; // buscando: procura em todo o histórico
     const past = A.orders.filter(o => !isToday(o.createdAt) && o.createdAt >= cutoff && matchesFilters(o));
 
     const byDay = {};
@@ -85,20 +89,21 @@
     });
 
     if (!dayKeys.length) {
-      el.innerHTML = `<div class="empty-state" style="padding:24px;"><p>Nenhum pedido nesse período.</p></div>`;
+      el.innerHTML = `<div class="empty-state" style="padding:24px;"><p>${searching ? 'Nenhum pedido anterior encontrado para essa busca.' : 'Nenhum pedido nesse período.'}</p></div>`;
       return;
     }
 
-    el.innerHTML = dayKeys.map(dayKey => {
+    const isDayOpen = (key) => searching || openDays.has(key);
+    el.innerHTML = (searching ? '<p class="muted" style="margin:0 0 10px;font-size:0.82rem;">Buscando em todo o histórico — dias com resultado abertos.</p>' : '') + dayKeys.map(dayKey => {
       const dayOrders = byDay[dayKey].sort((a, b) => b.createdAt - a.createdAt);
       const dayTotal = dayOrders.reduce((s, o) => s + o.total, 0);
       return `
         <div class="card" style="margin-bottom:10px; overflow:hidden;">
           <button class="history-day-head" data-day="${dayKey}" style="width:100%; display:flex; justify-content:space-between; align-items:center; padding:14px 18px; background:none; border:none; cursor:pointer; color:inherit; font:inherit; text-align:left;">
             <span><strong>${dayKey}</strong> <span class="muted">— ${dayOrders.length} pedido${dayOrders.length > 1 ? 's' : ''}</span></span>
-            <span style="display:flex; align-items:center; gap:12px;"><strong>${formatBRL(dayTotal)}</strong> <span class="accordion-arrow">▾</span></span>
+            <span style="display:flex; align-items:center; gap:12px;"><strong>${formatBRL(dayTotal)}</strong> <span class="accordion-arrow">${isDayOpen(dayKey) ? '▴' : '▾'}</span></span>
           </button>
-          <div class="history-day-body" data-day-body="${dayKey}" style="display:none; padding:0 18px 14px;">
+          <div class="history-day-body" data-day-body="${dayKey}" style="display:${isDayOpen(dayKey) ? 'block' : 'none'}; padding:0 18px 14px;">
             ${dayOrders.map(o => `
               <div class="card order-card" data-order="${o.id}" style="cursor:pointer; margin-bottom:8px;">
                 <div class="order-card__top"><strong>#${o.id}</strong> <span class="muted">${new Date(o.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span></div>
@@ -117,6 +122,7 @@
       const body = el.querySelector(`[data-day-body="${btn.dataset.day}"]`);
       const isOpen = body.style.display !== 'none';
       body.style.display = isOpen ? 'none' : 'block';
+      if (isOpen) openDays.delete(btn.dataset.day); else openDays.add(btn.dataset.day);
       btn.querySelector('.accordion-arrow').textContent = isOpen ? '▾' : '▴';
     }));
     el.querySelectorAll('.history-day-body .order-card').forEach(card => {
@@ -124,10 +130,19 @@
     });
   }
 
+  const normText = (s) => String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const searchNeedle = () => normText(searchRaw).trim().replace(/^#/, '');
+  function isSearching() { return searchNeedle() !== ''; }
+  function matchesSearch(o) {
+    const t = searchNeedle();
+    if (!t) return true;
+    if (normText(`${o.customer} ${o.id} ${o.area || ''}`).includes(t)) return true;
+    const digits = t.replace(/\D/g, '');
+    return digits.length >= 3 && String(o.phone || '').replace(/\D/g, '').includes(digits);
+  }
   function matchesFilters(o) {
     if (activeFilter !== 'todos' && o.modality !== activeFilter) return false;
-    if (searchTerm && !(`${o.customer} ${o.id}`.toLowerCase().includes(searchTerm))) return false;
-    return true;
+    return matchesSearch(o);
   }
 
   function renderKanban() {
@@ -151,6 +166,14 @@
       card.addEventListener('click', () => openOrderDrawer(card.dataset.order));
     });
   }
+
+  // Chamado pelo polling de 15s (admin-sync.js): atualiza só as listas, preservando
+  // o texto da busca, o foco e os dias abertos. Os pedidos já foram atualizados em A.orders.
+  window.__brasaOrdersRefresh = function () {
+    if (!document.getElementById('kanbanWrap')) return;
+    renderKanban();
+    renderHistory();
+  };
 
   function orderCardHtml(o) {
     const mins = Math.floor((Date.now() - o.createdAt) / 60000);
