@@ -277,10 +277,14 @@
 
   /* Vendas por produto. O item do pedido guarda o NOME do produto na hora da compra, então o cruzamento é por nome. */
   function computeProductSales(valid) {
-    const byName = new Map((A.products || []).map(p => [normName(p.name), p]));
+    const products = A.products || [];
+    const byId = new Map(products.map(p => [p.id, p]));
+    const byName = new Map(products.map(p => [normName(p.name), p]));
     const sold = new Map();
     valid.forEach(o => (o.items || []).forEach(it => {
-      const p = byName.get(normName(it.name));
+      // Liga pelo id do produto gravado no pedido (acompanha renomeações e separa produtos de mesmo nome).
+      // Pedido antigo sem id, ou produto que não existe mais: volta a ligar pelo nome, como antes.
+      const p = (it.productId && byId.get(it.productId)) || byName.get(normName(it.name));
       const key = p ? p.id : 'x:' + normName(it.name);
       const qty = Number(it.qty) || 0;
       const rev = it.lineTotal > 0 ? it.lineTotal : (it.unitPrice > 0 ? it.unitPrice * qty : (p ? (p.promoPrice || p.price) * qty : 0));
@@ -518,7 +522,7 @@
         </tbody></table></div>
       </div>
 
-      ${notCard(`<p class="muted" style="margin:0;font-size:0.8rem;"><strong>Como ler:</strong> <em>CMV</em> = soma de (quantidade da ficha técnica × custo por unidade) de cada insumo do produto. <em>Margem</em> = (preço atual − CMV) ÷ preço atual, sem considerar adicionais. <em>ABC</em>: A = produtos que somam até 80% da receita, B = até 95%, C = o restante. A matriz é uma adaptação da BCG (popularidade × margem, em vez de participação × crescimento). Os itens do pedido são ligados ao produto pelo nome; se um produto foi renomeado, as vendas antigas aparecem como “fora do cardápio”.</p>`)}
+      ${notCard(`<p class="muted" style="margin:0;font-size:0.8rem;"><strong>Como ler:</strong> <em>CMV</em> = soma de (quantidade da ficha técnica × custo por unidade) de cada insumo do produto. <em>Margem</em> = (preço atual − CMV) ÷ preço atual, sem considerar adicionais. <em>ABC</em>: A = produtos que somam até 80% da receita, B = até 95%, C = o restante. A matriz é uma adaptação da BCG (popularidade × margem, em vez de participação × crescimento). Cada item vendido é ligado ao produto pelo código interno gravado no pedido, então renomear um produto não perde o histórico. Pedidos antigos sem esse código são ligados pelo nome; se o produto também não existir mais, aparece como “fora do cardápio”.</p>`)}
     `;
 
     destroyCharts();
