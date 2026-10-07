@@ -76,6 +76,7 @@
         <td>${escapeHtml(o.phone || '')}</td>
         <td>${produtos}</td>
         <td>${escapeHtml(o.payment || '')}</td>
+        <td>${o.modality === 'entrega' ? 'Entrega' : 'Retirada'}</td>
         <td>${escapeHtml(o.area || '—')}</td>
         <td>${escapeHtml(enderecoCompleto || '—')}</td>
         <td style="text-align:right; white-space:nowrap;">${formatBRL(o.total)}</td>
@@ -97,8 +98,8 @@
       <h1>Relatório Completo de Vendas — ${escapeHtml(A.settings.storeName || '')}</h1>
       <p>Período: últimos ${dashPeriod === 'total' ? 'todos os registros' : dashPeriod} — ${vendasData.orders.length} pedido(s). Gerado em ${new Date().toLocaleString('pt-BR')}.</p>
       <table>
-        <thead><tr><th>Data/Hora do pedido</th><th>Cliente</th><th>Telefone</th><th>Produtos</th><th>Forma de pagamento</th><th>Bairro</th><th>Endereço</th><th>Total</th></tr></thead>
-        <tbody>${rows || '<tr><td colspan="8">Nenhum pedido no período</td></tr>'}</tbody>
+        <thead><tr><th>Data/Hora do pedido</th><th>Cliente</th><th>Telefone</th><th>Produtos</th><th>Forma de pagamento</th><th>Entrega/Retirada</th><th>Bairro</th><th>Endereço</th><th>Total</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="9">Nenhum pedido no período</td></tr>'}</tbody>
       </table>
       <p style="font-size:10px; color:#777;">Data/Hora se refere ao momento em que o pedido foi criado (o sistema ainda não guarda o horário exato da confirmação do pagamento separadamente).</p>
       <script>window.onload=function(){window.print();}<\/script>
@@ -401,7 +402,6 @@
     const d = computeInsumosData(ficha);
     const criticos = d.buckets[0] + d.buckets[1];
     const autoRows = d.rows.filter(r => r.autonomia !== null).sort((a, b) => a.autonomia - b.autonomia).slice(0, 8);
-    const consRows = d.rows.slice().sort((a, b) => b.cons - a.cons || a.i.nome.localeCompare(b.i.nome));
     const un = (r) => escapeHtml(r.i.unidadeMedida || '');
     const autoTxt = (r) => r.autonomia === null ? '<span class="muted">sem consumo</span>' : `${fmtNum(r.autonomia)} dia(s)`;
 
@@ -431,15 +431,15 @@
 
       <div class="card dash-card" style="margin-top:16px;">
         <h3>Consumo por insumo — ${PERIOD_LABELS[dashPeriod]}</h3>
-        ${d.rows.length ? `<div style="overflow-x:auto;"><table class="dash-table"><thead><tr><th>Insumo</th><th>Categoria</th><th>Consumo</th><th>Média/dia</th><th>Estoque atual</th><th>Autonomia</th><th>Custo consumido</th></tr></thead><tbody>
-          ${consRows.map(r => `<tr><td><strong>${escapeHtml(r.i.nome)}</strong></td><td class="muted">${escapeHtml(r.i.categoria || '—')}</td><td>${fmtNum(r.cons)} ${un(r)}</td><td>${fmtNum(r.media)} ${un(r)}</td><td>${fmtNum(r.i.quantidadeAtual)} ${un(r)}</td><td>${autoTxt(r)}</td><td>${r.custoConsumo === null ? '<span class="muted">sem custo</span>' : formatBRL(r.custoConsumo)}</td></tr>`).join('')}
-        </tbody></table></div>` : '<p class="muted">Nenhum insumo cadastrado.</p>'}
+        ${d.rows.length ? insShellHtml(d) : '<p class="muted">Nenhum insumo cadastrado.</p>'}
       </div>
 
       ${notCard(`<p class="muted" style="margin:0;font-size:0.8rem;"><strong>Como ler:</strong> o consumo é <em>teórico</em> — quantidade vendida × ficha técnica de cada produto (pedidos não cancelados). Adicionais e remoções escolhidos pelo cliente não entram, pois não têm ficha técnica.
         ${d.semFicha.length ? `<br><strong>Produtos vendidos sem ficha técnica</strong> (não contam no consumo): ${escapeHtml(d.semFicha.slice(0, 6).join(', '))}${d.semFicha.length > 6 ? ` e mais ${d.semFicha.length - 6}` : ''}.` : ''}
         <br>Ainda não existe histórico de preço de compra nem registro de desperdício/quebra, então esses dois indicadores não aparecem aqui.</p>`)}
     `;
+
+    wireInsumosTable(d);
 
     destroyCharts();
     if (window.Chart) {
@@ -593,9 +593,9 @@
       <table><thead><tr><th>Insumo</th><th>Estoque</th><th>% do máximo</th><th>Autonomia</th></tr></thead><tbody>
         ${d.alertas.map(x => `<tr><td>${escapeHtml(x.i.nome)}</td><td>${fmtNum(x.i.quantidadeAtual)} ${escapeHtml(x.i.unidadeMedida || '')}</td><td>${x.pct}%</td><td>${x.autonomia === null ? 'sem consumo' : fmtNum(x.autonomia) + ' dia(s)'}</td></tr>`).join('') || '<tr><td colspan="4">Nenhum insumo em alerta.</td></tr>'}
       </tbody></table>
-      <h3>Consumo por insumo</h3>
+      <h3>Consumo por insumo${insFiltersActive() ? ` (filtrado: ${insVisibleRows(d).length} de ${d.rows.length})` : ''}</h3>
       <table><thead><tr><th>Insumo</th><th>Categoria</th><th>Consumo</th><th>Média/dia</th><th>Estoque atual</th><th>Autonomia</th><th>Custo consumido</th></tr></thead><tbody>
-        ${d.rows.slice().sort((a, b) => b.cons - a.cons).map(x => { const u = escapeHtml(x.i.unidadeMedida || ''); return `<tr><td>${escapeHtml(x.i.nome)}</td><td>${escapeHtml(x.i.categoria || '—')}</td><td>${fmtNum(x.cons)} ${u}</td><td>${fmtNum(x.media)} ${u}</td><td>${fmtNum(x.i.quantidadeAtual)} ${u}</td><td>${x.autonomia === null ? '—' : fmtNum(x.autonomia) + ' dia(s)'}</td><td>${x.custoConsumo === null ? 'sem custo' : formatBRL(x.custoConsumo)}</td></tr>`; }).join('')}
+        ${insVisibleRows(d).map(x => { const u = escapeHtml(x.i.unidadeMedida || ''); return `<tr><td>${escapeHtml(x.i.nome)}</td><td>${escapeHtml(x.i.categoria || '—')}</td><td>${fmtNum(x.cons)} ${u}</td><td>${fmtNum(x.media)} ${u}</td><td>${fmtNum(x.i.quantidadeAtual)} ${u}</td><td>${x.autonomia === null ? '—' : fmtNum(x.autonomia) + ' dia(s)'}</td><td>${x.custoConsumo === null ? 'sem custo' : formatBRL(x.custoConsumo)}</td></tr>`; }).join('')}
       </tbody></table>
       <p class="note">Consumo teórico: quantidade vendida × ficha técnica (pedidos não cancelados). Adicionais e remoções não entram. Sem histórico de preço de compra nem registro de desperdício.</p>`;
     openReport('Relatório de Insumos', body);
@@ -620,6 +620,150 @@
     openReport('Relatório de Produtos', body);
   }
 
+  /* ---------------- Aba Vendas detalhadas ---------------- */
+  const DETALHE_STEP = 50;
+  let detalheShown = DETALHE_STEP;   // quantos pedidos aparecem; "Mostrar mais" soma mais 50
+
+  function renderDetalheTab(container) {
+    destroyCharts();
+    const d = computeVendasData();
+    const orders = d.orders.slice().sort((a, b) => b.createdAt - a.createdAt); // mais recentes primeiro
+    const entregas = orders.filter(o => o.modality === 'entrega').length;
+    const shown = orders.slice(0, detalheShown);
+    const restantes = orders.length - shown.length;
+    const rowsHtml = shown.map(o => {
+      const produtos = (o.items || []).map(i => `${escapeHtml(String(i.qty))}x ${escapeHtml(i.name || '')}`).join('<br>');
+      const enderecoCompleto = [o.address, o.area].filter(Boolean).join(' — ');
+      return `<tr><td style="white-space:nowrap;">${fmtDateTime(o.createdAt)}</td><td>${escapeHtml(o.customer || '')}</td><td style="white-space:nowrap;">${escapeHtml(o.phone || '')}</td><td>${produtos}</td><td>${escapeHtml(o.payment || '')}</td><td style="white-space:nowrap;">${o.modality === 'entrega' ? '🛵 Entrega' : '🏪 Retirada'}</td><td>${escapeHtml(o.area || '—')}</td><td>${escapeHtml(enderecoCompleto || '—')}</td><td style="text-align:right; white-space:nowrap;">${formatBRL(o.total)}</td></tr>`;
+    }).join('');
+
+    container.innerHTML = `
+      <div class="dash-kpi-row">
+        ${kpi('Pedidos no período', String(orders.length))}
+        ${kpi('Total vendido', formatBRL(d.faturamento))}
+        ${kpi('Entregas', String(entregas))}
+        ${kpi('Retiradas na loja', String(orders.length - entregas))}
+      </div>
+      <div class="card dash-card" style="margin-top:16px;">
+        <h3>Vendas detalhadas — ${PERIOD_LABELS[dashPeriod]}</h3>
+        <div style="overflow-x:auto;"><table class="dash-table"><thead><tr><th>Data/Hora do pedido</th><th>Cliente</th><th>Telefone</th><th>Produtos</th><th>Forma de pagamento</th><th>Entrega/Retirada</th><th>Bairro</th><th>Endereço</th><th style="text-align:right;">Total</th></tr></thead>
+          <tbody>${rowsHtml || '<tr><td colspan="9" class="muted">Nenhum pedido no período.</td></tr>'}</tbody></table></div>
+        ${restantes > 0 ? `<div style="text-align:center;margin-top:14px;"><button class="btn btn-secondary" id="detalheMoreBtn">Mostrar mais ${Math.min(DETALHE_STEP, restantes)} <span class="muted">(${restantes} restantes)</span></button></div>` : ''}
+      </div>
+      ${notCard(`<p class="muted" style="margin:0;font-size:0.8rem;">São os mesmos pedidos do Relatório Completo (pedidos não cancelados do período), aqui do mais recente para o mais antigo. Data/Hora é o momento em que o pedido foi criado. Pedidos de retirada não têm bairro nem endereço. O botão “Exportar PDF” gera o Relatório Completo.</p>`)}
+    `;
+    const more = document.getElementById('detalheMoreBtn');
+    if (more) more.addEventListener('click', () => { detalheShown += DETALHE_STEP; if (renderTabFn) renderTabFn(true); });
+    return { kind: 'detalhe', d };
+  }
+
+  /* ---------------- Filtros e ordenação da tabela "Consumo por insumo" ---------------- */
+  const foldText = (s) => String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const numOrNull = (s) => { const v = parseFloat(String(s == null ? '' : s).trim().replace(',', '.')); return Number.isFinite(v) ? v : null; };
+  const INS_RANGES = ['cons', 'media', 'estoque', 'custo'];
+  const insFreshFilters = () => ({ nome: '', cat: '', cons: ['', ''], media: ['', ''], estoque: ['', ''], custo: ['', ''], auto: '' });
+  const insF = insFreshFilters();    // filtros ficam guardados: sobrevivem à troca de aba e à atualização automática
+  let insSort = { key: 'cons', dir: 'desc' };
+  const INS_COLS = [['nome', 'Insumo'], ['cat', 'Categoria'], ['cons', 'Consumo'], ['media', 'Média/dia'], ['estoque', 'Estoque atual'], ['auto', 'Autonomia'], ['custo', 'Custo consumido']];
+  const insVal = (r, key) => ({ nome: r.i.nome, cat: r.i.categoria || '', cons: r.cons, media: r.media, estoque: r.i.quantidadeAtual, auto: r.autonomia, custo: r.custoConsumo }[key]);
+
+  function insFiltersActive() {
+    return !!(insF.nome.trim() || insF.cat || insF.auto || INS_RANGES.some(k => insF[k][0].trim() || insF[k][1].trim()));
+  }
+  function inRange(v, pair) {
+    const lo = numOrNull(pair[0]), hi = numOrNull(pair[1]);
+    if (lo === null && hi === null) return true;
+    if (v === null || v === undefined) return false;
+    return (lo === null || v >= lo) && (hi === null || v <= hi);
+  }
+  function insVisibleRows(d) {
+    const nome = foldText(insF.nome).trim();
+    const rows = d.rows.filter(r => {
+      if (nome && !foldText(r.i.nome).includes(nome)) return false;
+      if (insF.cat === '__none__' ? !!r.i.categoria : (insF.cat && r.i.categoria !== insF.cat)) return false;
+      if (!inRange(r.cons, insF.cons) || !inRange(r.media, insF.media) || !inRange(r.i.quantidadeAtual, insF.estoque) || !inRange(r.custoConsumo, insF.custo)) return false;
+      const a = r.autonomia;
+      if (insF.auto === 'lt3' && !(a !== null && a < 3)) return false;
+      if (insF.auto === '3a7' && !(a !== null && a >= 3 && a <= 7)) return false;
+      if (insF.auto === 'gt7' && !(a !== null && a > 7)) return false;
+      if (insF.auto === 'none' && a !== null) return false;
+      return true;
+    });
+    const f = insSort.dir === 'asc' ? 1 : -1;
+    return rows.sort((x, y) => {
+      const a = insVal(x, insSort.key), b = insVal(y, insSort.key);
+      if (a === null && b === null) return x.i.nome.localeCompare(y.i.nome);
+      if (a === null) return 1;      // vazios ("sem consumo", "sem custo") sempre no fim
+      if (b === null) return -1;
+      const c = typeof a === 'string' ? a.localeCompare(b) : a - b;
+      return c * f || x.i.nome.localeCompare(y.i.nome);
+    });
+  }
+  function insRowHtml(r) {
+    const u = escapeHtml(r.i.unidadeMedida || '');
+    const auto = r.autonomia === null ? '<span class="muted">sem consumo</span>' : `${fmtNum(r.autonomia)} dia(s)`;
+    return `<tr><td><strong>${escapeHtml(r.i.nome)}</strong></td><td class="muted">${escapeHtml(r.i.categoria || '—')}</td><td>${fmtNum(r.cons)} ${u}</td><td>${fmtNum(r.media)} ${u}</td><td>${fmtNum(r.i.quantidadeAtual)} ${u}</td><td>${auto}</td><td>${r.custoConsumo === null ? '<span class="muted">sem custo</span>' : formatBRL(r.custoConsumo)}</td></tr>`;
+  }
+  function insTbodyHtml(d) {
+    const rows = insVisibleRows(d);
+    return rows.length ? rows.map(insRowHtml).join('') : '<tr><td colspan="7" class="muted" style="padding:14px;">Nenhum insumo com esses filtros.</td></tr>';
+  }
+  function insTableHtml(d) {
+    const cats = [...new Set(d.rows.map(r => r.i.categoria).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+    const arrow = (k) => insSort.key === k ? (insSort.dir === 'asc' ? '▲' : '▼') : '↕';
+    const sel = (v, cur) => cur === v ? ' selected' : '';
+    const range = (k, label) => `<div class="ins-range"><input type="text" inputmode="decimal" data-insf="${k}" data-idx="0" id="insF_${k}_min" placeholder="mín" value="${escapeHtml(insF[k][0])}" aria-label="${label}: mínimo"><input type="text" inputmode="decimal" data-insf="${k}" data-idx="1" id="insF_${k}_max" placeholder="máx" value="${escapeHtml(insF[k][1])}" aria-label="${label}: máximo"></div>`;
+    return `<table class="dash-table"><thead>
+      <tr>${INS_COLS.map(([k, label]) => `<th><button type="button" class="ins-sort${insSort.key === k ? ' is-sorted' : ''}" data-sort="${k}">${label} <span class="arr">${arrow(k)}</span></button></th>`).join('')}</tr>
+      <tr class="ins-filter-row">
+        <th><input type="text" data-insf="nome" id="insF_nome" placeholder="Filtrar…" value="${escapeHtml(insF.nome)}" aria-label="Filtrar por nome"></th>
+        <th><select data-insf="cat" id="insF_cat" aria-label="Filtrar por categoria"><option value=""${sel('', insF.cat)}>Todas</option><option value="__none__"${sel('__none__', insF.cat)}>(sem categoria)</option>${cats.map(c => `<option value="${escapeHtml(c)}"${sel(c, insF.cat)}>${escapeHtml(c)}</option>`).join('')}</select></th>
+        <th>${range('cons', 'Consumo')}</th><th>${range('media', 'Média/dia')}</th><th>${range('estoque', 'Estoque atual')}</th>
+        <th><select data-insf="auto" id="insF_auto" aria-label="Filtrar por autonomia">${[['', 'Todas'], ['lt3', 'Menos de 3 dias'], ['3a7', '3 a 7 dias'], ['gt7', 'Mais de 7 dias'], ['none', 'Sem consumo']].map(([v, l]) => `<option value="${v}"${sel(v, insF.auto)}>${l}</option>`).join('')}</select></th>
+        <th>${range('custo', 'Custo consumido')}</th>
+      </tr></thead><tbody id="insTbody">${insTbodyHtml(d)}</tbody></table>`;
+  }
+  function insShellHtml(d) {
+    return `<div class="ins-toolbar"><span class="muted" id="insCount"></span><button type="button" class="btn btn-secondary" id="insClearBtn" style="padding:6px 12px;font-size:0.78rem;">Limpar filtros</button></div>
+      <div id="insTableWrap" style="overflow-x:auto;">${insTableHtml(d)}</div>
+      <p class="muted" style="margin:8px 0 0;font-size:0.75rem;">Consumo, média e estoque estão na unidade de cada insumo (g, un, ml…): ao filtrar por faixa, lembre que unidades diferentes não se comparam. Os gráficos e os alertas acima não são afetados pelos filtros.</p>`;
+  }
+  function wireInsumosTable(d) {
+    const wrap = document.getElementById('insTableWrap');
+    if (!wrap) return;
+    const refresh = () => {
+      const tb = document.getElementById('insTbody');
+      if (tb) tb.innerHTML = insTbodyHtml(d);
+      const n = insVisibleRows(d).length;
+      const c = document.getElementById('insCount');
+      if (c) c.textContent = `Mostrando ${n} de ${d.rows.length} insumo${d.rows.length === 1 ? '' : 's'}${insFiltersActive() ? ' (filtros ativos)' : ''}`;
+      const b = document.getElementById('insClearBtn');
+      if (b) b.style.visibility = insFiltersActive() ? 'visible' : 'hidden';
+    };
+    const onControl = (e) => {
+      const el = e.target;
+      if (!el.dataset || el.dataset.insf === undefined) return;
+      if (el.dataset.idx !== undefined) insF[el.dataset.insf][Number(el.dataset.idx)] = el.value; else insF[el.dataset.insf] = el.value;
+      refresh();
+    };
+    wrap.addEventListener('input', onControl);
+    wrap.addEventListener('change', onControl);
+    wrap.addEventListener('click', (e) => {
+      const b = e.target.closest('.ins-sort');
+      if (!b) return;
+      const k = b.dataset.sort;
+      insSort = { key: k, dir: insSort.key === k ? (insSort.dir === 'asc' ? 'desc' : 'asc') : (k === 'nome' || k === 'cat' ? 'asc' : 'desc') };
+      wrap.innerHTML = insTableHtml(d);   // refaz o cabeçalho (setas) mantendo os filtros atuais
+      refresh();
+    });
+    document.getElementById('insClearBtn').addEventListener('click', () => {
+      Object.assign(insF, insFreshFilters());
+      wrap.innerHTML = insTableHtml(d);
+      refresh();
+    });
+    refresh();
+  }
+
   /* ---------------- View do Dashboard ---------------- */
   let activeTabKey = 'vendas';   // lembra a aba aberta (a atualização automática não pode voltar pra Vendas)
   let renderTabFn = null;        // preenchido pela view; usado pela atualização automática
@@ -638,6 +782,7 @@
     root.innerHTML = `
       <div class="tabs-row" id="dashTabs">
         <button class="tab-btn" data-dtab="vendas">📈 Vendas</button>
+        <button class="tab-btn" data-dtab="detalhe">🧾 Vendas detalhadas</button>
         <button class="tab-btn" data-dtab="insumos">📦 Insumos</button>
         <button class="tab-btn" data-dtab="produtos">🍔 Produtos</button>
       </div>
@@ -674,24 +819,33 @@
       lastSignature = dataSignature();
 
       if (active === 'vendas') { lastResult = renderVendasTab(content); return; }
+      if (active === 'detalhe') { lastResult = renderDetalheTab(content); return; }
 
       if (!silent) { destroyCharts(); content.innerHTML = '<div class="card dash-card"><p class="muted">Carregando dados…</p></div>'; }
+      const act = document.activeElement;
+      const keep = (silent && act && act.id && content.contains(act)) ? { id: act.id, s: act.selectionStart, e: act.selectionEnd } : null;
       const ficha = await loadFicha(false);
       if (token !== renderToken || !document.getElementById('dashTabContent')) return; // usuário trocou de aba/tela enquanto carregava
       lastResult = active === 'insumos' ? renderInsumosTab(content, ficha) : renderProdutosTab(content, ficha);
+      if (keep) { // devolve o cursor ao campo (ex.: filtro) que a pessoa estava digitando
+        const el = document.getElementById(keep.id);
+        if (el) { el.focus(); try { el.setSelectionRange(keep.s, keep.e); } catch (_) { /* select não tem seleção */ } }
+      }
     }
     renderTabFn = renderActiveTab;
 
-    document.getElementById('dashPeriodSelect').addEventListener('change', (e) => { dashPeriod = e.target.value; renderActiveTab(false); });
+    document.getElementById('dashPeriodSelect').addEventListener('change', (e) => { dashPeriod = e.target.value; detalheShown = DETALHE_STEP; renderActiveTab(false); });
     document.querySelectorAll('#dashTabs .tab-btn').forEach(btn => btn.addEventListener('click', () => {
       document.querySelectorAll('#dashTabs .tab-btn').forEach(b => b.classList.remove('is-active'));
       btn.classList.add('is-active');
       activeTabKey = btn.dataset.dtab;
+      if (activeTabKey === 'detalhe') detalheShown = DETALHE_STEP;
       renderActiveTab(false);
     }));
     document.getElementById('dashExportBtn').addEventListener('click', () => {
       if (!lastResult) return;
       if (activeTabKey === 'vendas') exportVendasPdf(lastResult);
+      else if (lastResult.kind === 'detalhe') exportRelatorioCompletoPdf(lastResult.d);
       else if (lastResult.kind === 'insumos') exportInsumosPdf(lastResult);
       else if (lastResult.kind === 'produtos') exportProdutosPdf(lastResult);
     });
