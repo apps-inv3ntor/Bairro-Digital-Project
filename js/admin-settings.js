@@ -163,22 +163,11 @@
       </div>
 
       <div class="tab-panel" id="tabUsuarios">
-        <div class="toolbar"><button class="btn btn-primary" id="newUserBtn" style="margin-left:auto;">+ Convidar usuário</button></div>
+        <div class="toolbar">${canInviteUsers() ? '<button class="btn btn-primary" id="newUserBtn" style="margin-left:auto;">+ Convidar usuário</button>' : ''}</div>
         <div class="card table-wrap">
           <table class="data-table">
-            <thead><tr><th>Nome</th><th>E-mail</th><th>Função</th><th>Status</th><th></th></tr></thead>
-            <tbody id="usersTableBody">
-              ${(A.adminUsers || []).map(u => `
-                <tr data-user="${u.userId}">
-                  <td style="display:flex; align-items:center; gap:10px;"><div class="avatar-initials" style="width:28px;height:28px;font-size:0.66rem;">${(u.name || '?').split(' ').map(n => n[0]).join('').slice(0, 2)}</div>${escapeHtml(u.name || '')}</td>
-                  <td class="muted">${escapeHtml(u.email || '')}</td>
-                  <td><span class="pill pill-gray">${u.role}</span></td>
-                  <td><span class="pill ${u.active ? 'pill-green' : 'pill-gray'}">${u.active ? 'Ativo' : 'Inativo'}</span></td>
-                  <td style="text-align:right; white-space:nowrap;">
-                    <button class="btn btn-secondary" data-toggle-user="${u.userId}" style="padding:6px 10px; font-size:0.75rem;">${u.active ? 'Desativar' : 'Ativar'}</button>
-                    <button class="btn btn-danger" data-delete-user="${u.userId}" style="padding:6px 10px; font-size:0.75rem;">Excluir</button>
-                  </td>
-                </tr>`).join('') || `<tr><td colspan="5" class="muted" style="text-align:center; padding:24px;">Nenhum usuário cadastrado ainda.</td></tr>`}
+            <thead><tr><th>Nome</th><th>E-mail</th><th>Função</th><th>Acesso</th><th>Status</th><th></th></tr></thead>
+            <tbody id="usersTableBody">${userRowsHtml()}
             </tbody>
           </table>
         </div>
@@ -195,54 +184,207 @@
 
     bindSettingsEvents();
     bindUsersEvents();
+    if (window.__brasaAccess) window.__brasaAccess.applySettingsTabs();
   };
+
+  /* ---------- Usuários e permissões ---------- */
+  const rulesOpen = () => { const acc = window.__brasaAccess; return !acc || !acc.me(); };   // não sei quem é → não restringe
+  function canInviteUsers() { const acc = window.__brasaAccess; return rulesOpen() || acc.canManageUsersTab(acc.me()); }
+
+  function userRowsHtml() {
+    const acc = window.__brasaAccess;
+    const me = acc ? acc.me() : null;
+    const users = A.adminUsers || [];
+    const rows = users.map(u => {
+      const isSelf = !!(me && u.userId === me.userId);
+      const canEdit = rulesOpen() || acc.canEditUser(me, u);
+      const canManage = rulesOpen() || acc.canManageUser(me, u, users);
+      const id = escapeHtml(String(u.userId));
+      const btn = 'padding:6px 10px; font-size:0.75rem;';
+      const buttons = [
+        canEdit ? `<button class="btn btn-secondary" data-edit-user="${id}" style="${btn}">Editar</button>` : '',
+        canManage ? `<button class="btn btn-secondary" data-toggle-user="${id}" style="${btn}">${u.active ? 'Desativar' : 'Ativar'}</button>` : '',
+        canManage ? `<button class="btn btn-danger" data-delete-user="${id}" style="${btn}">Excluir</button>` : '',
+      ].filter(Boolean).join(' ');
+      const initials = escapeHtml((u.name || '?').split(' ').map(n => n[0]).join('').slice(0, 2));
+      return `
+                <tr data-user="${id}">
+                  <td style="display:flex; align-items:center; gap:10px;"><div class="avatar-initials" style="width:28px;height:28px;font-size:0.66rem;">${initials}</div>${escapeHtml(u.name || '')}${isSelf ? ' <span class="muted" style="font-size:0.75rem;">(você)</span>' : ''}</td>
+                  <td class="muted">${escapeHtml(u.email || '')}</td>
+                  <td><span class="pill pill-gray">${escapeHtml(acc ? acc.roleLabel(u.role) : String(u.role || ''))}</span></td>
+                  <td class="muted" style="font-size:0.8rem;">${u.permissions == null ? 'Acesso total' : 'Personalizado'}</td>
+                  <td><span class="pill ${u.active ? 'pill-green' : 'pill-gray'}">${u.active ? 'Ativo' : 'Inativo'}</span></td>
+                  <td style="text-align:right; white-space:nowrap;">${buttons || '<span class="muted">—</span>'}</td>
+                </tr>`;
+    }).join('');
+    return rows || `<tr><td colspan="6" class="muted" style="text-align:center; padding:24px;">Nenhum usuário cadastrado ainda.</td></tr>`;
+  }
 
   function bindUsersEvents() {
     const newUserBtn = document.getElementById('newUserBtn');
-    if (newUserBtn) newUserBtn.addEventListener('click', () => {
-      const name = prompt('Nome da pessoa:');
-      if (!name) return;
-      const email = prompt('E-mail (vai receber um convite pra criar a senha):');
-      if (!email) return;
-      const role = prompt('Função (administrador, atendente ou cozinha):', 'atendente');
-      if (!role || !['administrador', 'atendente', 'cozinha'].includes(role)) { showToast('Função inválida', 'error'); return; }
-      inviteUser(name, email, role);
-    });
-
+    if (newUserBtn) newUserBtn.addEventListener('click', () => openUserModal(null));
+    bindUserRowButtons();
+  }
+  function bindUserRowButtons() {
+    document.querySelectorAll('[data-edit-user]').forEach(btn => btn.addEventListener('click', () => openUserModal(btn.dataset.editUser)));
     document.querySelectorAll('[data-toggle-user]').forEach(btn => btn.addEventListener('click', () => toggleUserActive(btn.dataset.toggleUser)));
     document.querySelectorAll('[data-delete-user]').forEach(btn => btn.addEventListener('click', () => deleteAdminUser(btn.dataset.deleteUser)));
   }
+  function refreshUsersTable() {
+    const tb = document.getElementById('usersTableBody');
+    if (!tb) return;
+    tb.innerHTML = userRowsHtml();
+    bindUserRowButtons();
+  }
+  const migrationHint = (msg) => (/permissions|check constraint|admin_users_role_check/i.test(msg || '') ? ' (a migração 0020 já foi executada no Supabase?)' : '');
 
-  async function inviteUser(name, email, role) {
-    if (!window.SUPABASE_READY) { showToast('Conecte o Supabase pra convidar usuários de verdade.', 'error'); return; }
+  // Árvore de marcadores: menus → abas/sub-abas. Desmarcar um menu desabilita as abas dele.
+  function permTreeHtml(perms, locked) {
+    const acc = window.__brasaAccess;
+    const { MENUS, CHILDREN } = acc.catalog;
+    return MENUS.map(([id, label]) => {
+      const mk = acc.keyMenu(id);
+      const kids = CHILDREN[id] || [];
+      const menuOn = !!perms[mk];
+      const kidsHtml = kids.length ? `<div class="perm-children">${kids.map(([cid, clabel]) => {
+        const ck = acc.keyChild(id, cid);
+        return `<label class="perm-row"><input type="checkbox" data-perm="${ck}" data-parent="${mk}" ${perms[ck] ? 'checked' : ''} ${(!menuOn || locked.includes(ck)) ? 'disabled' : ''}> <span>${escapeHtml(clabel)}</span></label>`;
+      }).join('')}</div>` : '';
+      return `<div class="perm-group"><label class="perm-row perm-menu"><input type="checkbox" data-perm="${mk}" ${menuOn ? 'checked' : ''} ${locked.includes(mk) ? 'disabled' : ''}> <span>${escapeHtml(label)}</span></label>${kidsHtml}</div>`;
+    }).join('');
+  }
+
+  function openUserModal(userId) {
+    const acc = window.__brasaAccess;
+    if (!acc) { showToast('Módulo de permissões não carregado — atualize a página.', 'error'); return; }
+    const me = acc.me();
+    const users = A.adminUsers || [];
+    const u = userId ? users.find(x => x.userId === userId) : null;
+    if (userId && !u) return;
+    const isNew = !u;
+    const isSelf = !!(u && me && u.userId === me.userId);
+    const roleOpts = isSelf ? acc.ownRoleOptions(me) : (me ? acc.assignableRoles(me) : acc.catalog.ROLES);
+    const curRole = u ? u.role : 'atendente';
+    const allOn = Object.fromEntries(acc.catalog.KEYS.map(k => [k, true]));
+    const perms = u ? (u.permissions == null ? allOn : { ...acc.defaultsFor(u.role), ...u.permissions }) : acc.defaultsFor(curRole);
+    const locked = isSelf ? acc.LOCKED_SELF_KEYS : [];
+    const modal = document.getElementById('adminModalContent');
+    modal.innerHTML = `
+      <div class="modal__head"><h2>${isNew ? 'Convidar usuário' : 'Editar usuário'}</h2><button class="icon-only-btn" id="closeUserModal">✕</button></div>
+      <div class="modal__body">
+        ${u && u.permissions == null ? '<div class="perm-note">Esta pessoa tem <strong>acesso total</strong> (foi cadastrada antes das permissões existirem). Ao salvar, os marcadores abaixo passam a valer.</div>' : ''}
+        <div class="field"><label>Nome</label><input type="text" id="fUserName" value="${escapeHtml(u ? (u.name || '') : '')}" placeholder="Nome da pessoa"></div>
+        <div class="field"><label>E-mail</label>${isNew
+          ? '<input type="email" id="fUserEmail" placeholder="pessoa@email.com"><div class="muted" style="font-size:0.75rem;margin-top:4px;">A pessoa recebe um convite por e-mail para criar a senha.</div>'
+          : `<div>${escapeHtml(u.email || '—')}</div><div class="muted" style="font-size:0.75rem;margin-top:4px;">O e-mail é o login da pessoa e não muda por aqui. Para trocar: convide o novo e-mail e depois exclua o antigo.</div>`}</div>
+        <div class="field"><label>Função</label><select id="fUserRole">${roleOpts.map(([id, label]) => `<option value="${id}"${id === curRole ? ' selected' : ''}>${escapeHtml(label)}</option>`).join('')}</select>
+          <div class="muted" style="font-size:0.75rem;margin-top:4px;">${isSelf ? 'No seu próprio cadastro você só pode manter a função ou subir para Proprietário. ' : ''}Ao trocar a função, os marcadores abaixo voltam ao padrão dela — depois você pode ajustar.</div></div>
+        <div class="field"><label>O que esta pessoa pode ver</label>
+          <div class="perm-tree" id="permTree">${permTreeHtml(perms, locked)}</div>
+          <div class="muted" style="font-size:0.75rem;margin-top:6px;">Desmarcar um menu esconde também as abas dele.${isSelf ? ' Você não pode retirar o seu próprio acesso a Configurações → Usuários e permissões.' : ''}</div></div>
+        <div class="field-error-msg" id="errUserForm"></div>
+      </div>
+      <div class="modal__foot">
+        <button class="btn btn-secondary" id="cancelUserBtn">Cancelar</button>
+        <button class="btn btn-primary" id="saveUserBtn">${isNew ? 'Enviar convite' : 'Salvar'}</button>
+      </div>`;
+    const tree = document.getElementById('permTree');
+    const roleSel = document.getElementById('fUserRole');
+    const syncKids = () => {
+      tree.querySelectorAll('[data-parent]').forEach(k => {
+        const parent = tree.querySelector(`[data-perm="${k.dataset.parent}"]`);
+        k.disabled = !parent.checked || locked.includes(k.dataset.perm);
+      });
+    };
+    tree.addEventListener('change', (e) => { if (e.target.matches('[data-perm]')) syncKids(); });
+    roleSel.addEventListener('change', () => {
+      const d = acc.defaultsFor(roleSel.value);
+      tree.querySelectorAll('[data-perm]').forEach(el => { el.checked = locked.includes(el.dataset.perm) ? true : !!d[el.dataset.perm]; });
+      syncKids();
+    });
+    document.getElementById('closeUserModal').addEventListener('click', A.closeAllOverlays);
+    document.getElementById('cancelUserBtn').addEventListener('click', A.closeAllOverlays);
+    document.getElementById('saveUserBtn').addEventListener('click', () => saveUserModal(u, isSelf));
+    A.openBackdrop();
+    document.getElementById('adminModal').classList.add('is-open');
+  }
+
+  async function saveUserModal(u, isSelf) {
+    const acc = window.__brasaAccess;
+    const err = document.getElementById('errUserForm');
+    const fail = (m) => { err.textContent = m; err.classList.add('is-visible'); };
+    err.classList.remove('is-visible');
+    const name = document.getElementById('fUserName').value.trim();
+    const role = document.getElementById('fUserRole').value;
+    const emailEl = document.getElementById('fUserEmail');
+    const email = emailEl ? emailEl.value.trim() : '';
+    if (name.length < 2) return fail('Informe o nome da pessoa.');
+    if (!u && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return fail('Informe um e-mail válido.');
+    const perms = {};
+    acc.catalog.KEYS.forEach(k => { const el = document.querySelector(`#permTree [data-perm="${k}"]`); perms[k] = !!(el && el.checked); });
+    if (isSelf) acc.LOCKED_SELF_KEYS.forEach(k => { perms[k] = true; });
+    if (!acc.catalog.MENUS.some(([id]) => perms[acc.keyMenu(id)])) return fail('Marque pelo menos um menu.');
+    if (!window.SUPABASE_READY) { showToast('Conecte o Supabase para gerenciar usuários de verdade.', 'error'); return; }
+    const btn = document.getElementById('saveUserBtn');
+    btn.disabled = true;
+
+    if (u) {
+      const { error } = await window.sb.from('admin_users').update({ name, role, permissions: perms }).eq('user_id', u.userId);
+      if (error) { btn.disabled = false; fail('Não foi possível salvar: ' + error.message + migrationHint(error.message)); return; }
+      u.name = name; u.role = role; u.permissions = perms;
+      A.persist('admin_admin_users', A.adminUsers);
+      A.closeAllOverlays();
+      refreshUsersTable();
+      if (isSelf) acc.apply();
+      showToast('Usuário atualizado');
+      return;
+    }
+
     showToast('Enviando convite...');
     const { data, error } = await window.sb.functions.invoke('invite-admin-user', { body: { name, email, role } });
     if (error || !data || data.error) {
-      showToast('Não foi possível convidar: ' + ((data && data.error) || (error && error.message) || 'erro desconhecido'), 'error');
+      btn.disabled = false;
+      fail('Não foi possível convidar: ' + ((data && data.error) || (error && error.message) || 'erro desconhecido') + migrationHint((data && data.error) || (error && error.message)));
       return;
     }
-    showToast('Convite enviado! A pessoa recebe um e-mail pra criar a senha.');
+    // A function cria o login e grava nome/e-mail/função; as permissões escolhidas são gravadas aqui, logo em seguida.
+    let saved = false;
+    try {
+      const { data: row } = await window.sb.from('admin_users').select('user_id').eq('email', email).maybeSingle();
+      if (row && row.user_id) {
+        const { error: pe } = await window.sb.from('admin_users').update({ permissions: perms }).eq('user_id', row.user_id);
+        saved = !pe;
+      }
+    } catch (_) { /* tratado abaixo */ }
+    A.closeAllOverlays();
     await window.__brasaSyncCatalogFromSupabase();
+    refreshUsersTable();
+    if (saved) showToast('Convite enviado! A pessoa recebe um e-mail pra criar a senha.');
+    else showToast('Convite enviado, mas as permissões NÃO foram gravadas: a pessoa ficaria com acesso total. Abra “Editar” nela e salve agora.', 'error');
   }
 
   async function toggleUserActive(userId) {
     const u = (A.adminUsers || []).find(x => x.userId === userId);
     if (!u || !window.SUPABASE_READY) return;
+    const acc = window.__brasaAccess;
+    if (!rulesOpen() && !acc.canManageUser(acc.me(), u, A.adminUsers)) { showToast('Você não tem permissão para fazer isso com este usuário.', 'error'); return; }
     const { error } = await window.sb.from('admin_users').update({ active: !u.active }).eq('user_id', userId);
     if (error) { showToast('Falhou ao atualizar: ' + error.message, 'error'); return; }
     u.active = !u.active;
-    A.goToView('configuracoes');
+    refreshUsersTable();
     showToast(u.active ? 'Usuário ativado' : 'Usuário desativado');
   }
 
   async function deleteAdminUser(userId) {
     const u = (A.adminUsers || []).find(x => x.userId === userId);
     if (!u) return;
-    if (!confirm(`Remover o acesso de administrador de ${u.name}? Essa ação não pode ser desfeita.`)) return;
+    const acc = window.__brasaAccess;
+    if (!rulesOpen() && !acc.canManageUser(acc.me(), u, A.adminUsers)) { showToast('Você não tem permissão para fazer isso com este usuário.', 'error'); return; }
+    if (!confirm(`Remover o acesso de administrador de ${u.name}?\n\nA pessoa deixa de entrar no painel. O login dela continua existindo no Supabase (Authentication → Users). Essa ação não pode ser desfeita.`)) return;
     const { error } = await window.sb.from('admin_users').delete().eq('user_id', userId);
     if (error) { showToast('Falhou ao excluir: ' + error.message, 'error'); return; }
     A.adminUsers = (A.adminUsers || []).filter(x => x.userId !== userId);
-    A.goToView('configuracoes');
+    refreshUsersTable();
     showToast('Acesso removido');
   }
 
@@ -469,6 +611,5 @@
       rerenderFaqList();
     });
 
-    document.getElementById('newUserBtn').addEventListener('click', () => showToast('Convite enviado por e-mail (simulado)'));
   }
 })();

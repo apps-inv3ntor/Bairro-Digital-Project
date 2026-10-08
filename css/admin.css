@@ -621,3 +621,14 @@ h1, h2, h3, h4 {
 .ins-filter-row input, .ins-filter-row select { width: 100%; min-width: 0; font-size: 0.78rem; padding: 5px 7px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); }
 .ins-range { display: flex; gap: 4px; min-width: 110px; }
 .ins-range input { width: 50%; }
+
+/* Usuários e permissões — árvore de marcadores */
+.perm-tree { max-height: 42vh; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; background: var(--surface-2); }
+.perm-group { padding: 4px 0; }
+.perm-row { display: flex; align-items: center; gap: 8px; font-size: 0.86rem; color: var(--text); cursor: pointer; padding: 3px 0; }
+.perm-row input { width: auto; margin: 0; }
+.perm-menu { font-weight: 600; }
+.perm-children { margin: 2px 0 6px 26px; display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+.perm-row input:disabled + span { opacity: 0.55; }
+.perm-note { background: rgba(232, 162, 61, 0.12); border: 1px solid rgba(232, 162, 61, 0.45); color: var(--text); border-radius: var(--radius-sm); padding: 10px 12px; font-size: 0.82rem; margin-bottom: 14px; }
+@media (max-width: 600px) { .perm-children { grid-template-columns: 1fr; } }

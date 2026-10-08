@@ -45,7 +45,9 @@
   function render() {
     const t = needle();
     if (t.length < 2) { close(); return; }
-    const orders = findOrders(t), products = findProducts(t);
+    const acc = window.__brasaAccess;
+    const orders = (!acc || acc.canView('pedidos')) ? findOrders(t) : [];
+    const products = (!acc || acc.canView('produtos')) ? findProducts(t) : [];
     const esc = A().escapeHtml, brl = A().formatBRL;
     results = [
       ...orders.slice(0, MAX_PER_GROUP).map(o => ({ type: 'order', o })),

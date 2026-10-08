@@ -318,8 +318,10 @@
       if (!bannersErr && banners && banners.length) { A.banners = banners.map(bannerFromDb); A.persist('admin_banners', A.banners); }
       if (!ordersErr && rawOrders) { A.orders = rawOrders.map(orderFromDb); A.persist('admin_orders', A.orders); A.updateOrdersBadge(); }
       if (!adminUsersErr && rawAdminUsers) {
-        A.adminUsers = rawAdminUsers.map(u => ({ userId: u.user_id, name: u.name, email: u.email || '', role: u.role, active: u.active }));
+        A.adminUsers = rawAdminUsers.map(u => ({ userId: u.user_id, name: u.name, email: u.email || '', role: u.role, active: u.active,
+          permissions: (u.permissions && typeof u.permissions === 'object') ? u.permissions : null }));
         A.persist('admin_admin_users', A.adminUsers);
+        if (window.__brasaAccess) window.__brasaAccess.apply();
       }
       if (!insumosErr && rawInsumos) {
         A.insumos = rawInsumos.map(insumoFromDb);

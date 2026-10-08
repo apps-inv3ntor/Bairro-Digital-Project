@@ -802,6 +802,10 @@
       <div id="dashTabContent"></div>
     `;
     document.getElementById('dashPeriodSelect').value = dashPeriod;
+    const acc = window.__brasaAccess;
+    const tabOk = (k) => !acc || acc.canTab('dashboard', k);
+    document.querySelectorAll('#dashTabs .tab-btn').forEach(b => { b.style.display = tabOk(b.dataset.dtab) ? '' : 'none'; });
+    if (!tabOk(activeTabKey)) activeTabKey = ['vendas', 'detalhe', 'insumos', 'produtos'].find(tabOk) || activeTabKey;
     document.querySelectorAll('#dashTabs .tab-btn').forEach(b => b.classList.toggle('is-active', b.dataset.dtab === activeTabKey));
 
     let lastResult = null;   // resultado da última aba renderizada (alimenta o export)

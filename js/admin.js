@@ -287,6 +287,7 @@
     document.getElementById('profileRole').textContent = currentUser.role;
     document.getElementById('profileInitials').textContent = initials;
     showToast(user.demo ? `Bem-vinda de volta, ${user.name.split(' ')[0]}! (modo demonstração)` : `Bem-vinda, ${user.name.split(' ')[0]}!`);
+    if (!user.demo && window.__brasaAccess) window.__brasaAccess.apply();
     if (!user.demo && typeof window.__brasaSyncCatalogFromSupabase === 'function') {
       window.__brasaSyncCatalogFromSupabase();
     }
@@ -311,6 +312,8 @@
   });
 
   function goToView(view) {
+    // Sem permissão pra essa tela → abre a primeira que a pessoa pode ver (se não souber quem é, não bloqueia)
+    if (window.__brasaAccess && !window.__brasaAccess.canView(view)) view = window.__brasaAccess.firstAllowedView();
     currentView = view;
     document.querySelectorAll('.nav-item').forEach(b => b.classList.toggle('is-active', b.dataset.view === view));
     document.getElementById('topbarTitle').textContent = VIEW_TITLES[view] || view;
