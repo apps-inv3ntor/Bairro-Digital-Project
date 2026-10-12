@@ -223,6 +223,15 @@
             }, { onConflict: 'nome' })
             .select('id').single();
           if (!insumoRow) continue;
+          // Custo por unidade de medida = cost_price do preset ÷ quantidade (ex.: R$ 9 ÷ 200 g = R$ 0,045/g).
+          // Só preenche se o insumo ainda estiver SEM custo (não apaga o que foi digitado à mão). Chamada separada e
+          // tolerante a erro: se falhar (ex.: migração 0019 ainda não rodou), o Terraformar segue exatamente como antes.
+          try {
+            const q = Number(ins.quantity), c = Number(ins.cost_price);
+            if (q > 0 && Number.isFinite(c) && c >= 0) {
+              await window.sb.from('insumos').update({ custo_unitario: Math.round((c / q) * 10000) / 10000 }).eq('id', insumoRow.id).is('custo_unitario', null);
+            }
+          } catch (_) { /* nunca interrompe o Terraformar */ }
           await window.sb.from('ficha_tecnica').upsert({
             product_id: inserted.id, insumo_id: insumoRow.id, quantidade_gasta: ins.quantity,
           }, { onConflict: 'product_id,insumo_id' });

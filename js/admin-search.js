@@ -53,7 +53,7 @@
       ...orders.slice(0, MAX_PER_GROUP).map(o => ({ type: 'order', o })),
       ...products.slice(0, MAX_PER_GROUP).map(p => ({ type: 'product', p })),
     ];
-    active = results.length ? 0 : -1;
+    active = -1;   // nada vem pré-selecionado: só navega quando a pessoa escolhe (clique, ou seta + Enter)
 
     let html = '', i = 0;
     const group = (title, total, shown) => `<div class="gs-group">${title} <span>(${total}${total > shown ? `, mostrando ${shown}` : ''})</span></div>`;
@@ -82,7 +82,7 @@
   function paintActive() {
     panel.querySelectorAll('.gs-item').forEach(el => el.classList.toggle('is-active', Number(el.dataset.i) === active));
     const el = panel.querySelector('.gs-item.is-active');
-    if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest' });
+    if (el && el.scrollIntoView && active >= 0) el.scrollIntoView({ block: 'nearest' });
   }
   function close() { panel.hidden = true; panel.innerHTML = ''; results = []; active = -1; }
 
@@ -107,8 +107,8 @@
     if (e.key === 'Escape') { close(); return; }
     if (panel.hidden || !results.length) return;
     if (e.key === 'ArrowDown') { e.preventDefault(); active = (active + 1) % results.length; paintActive(); }
-    else if (e.key === 'ArrowUp') { e.preventDefault(); active = (active - 1 + results.length) % results.length; paintActive(); }
-    else if (e.key === 'Enter') { e.preventDefault(); choose(active >= 0 ? active : 0); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); active = active <= 0 ? results.length - 1 : active - 1; paintActive(); }
+    else if (e.key === 'Enter') { e.preventDefault(); if (active >= 0) choose(active); }
   });
   // mousedown (e não click) para o campo não perder o foco antes da escolha
   panel.addEventListener('mousedown', (e) => {
@@ -117,5 +117,6 @@
     e.preventDefault();
     choose(Number(el.dataset.i));
   });
+  panel.addEventListener('mouseover', (e) => { const el = e.target.closest('.gs-item'); if (el) { active = Number(el.dataset.i); paintActive(); } });
   document.addEventListener('mousedown', (e) => { if (!host.contains(e.target)) close(); });
 })();

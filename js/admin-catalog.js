@@ -11,21 +11,23 @@
      PRODUTOS
      ============================================================ */
   let prodSearch = '', prodCategoryFilter = 'todas';
+  let prodSearchRaw = '';   // texto como foi digitado: a caixa sempre mostra o filtro que está valendo (nada de filtro escondido)
 
   A.VIEW_RENDERERS['produtos'] = function renderProducts() {
     const root = document.getElementById('viewContent');
     root.innerHTML = `
       <div class="toolbar">
-        <div class="toolbar__search"><span>🔍</span><input type="text" id="prodSearch" placeholder="Buscar produto ou código"></div>
+        <div class="toolbar__search"><span>🔍</span><input type="text" id="prodSearch" placeholder="Buscar produto ou código" value="${A.escapeHtml(prodSearchRaw)}" autocomplete="off"></div>
         <select id="prodCategoryFilter">
-          <option value="todas">Todas as categorias</option>
-          ${A.categories.map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
+          <option value="todas"${prodCategoryFilter === 'todas' ? ' selected' : ''}>Todas as categorias</option>
+          ${A.categories.map(c => `<option value="${c.id}"${prodCategoryFilter === c.id ? ' selected' : ''}>${c.name}</option>`).join('')}
         </select>
         <button class="btn btn-primary" id="newProductBtn" style="margin-left:auto;">+ Novo produto</button>
       </div>
       <div class="product-admin-grid" id="productAdminGrid"></div>`;
 
-    document.getElementById('prodSearch').addEventListener('input', (e) => { prodSearch = e.target.value.toLowerCase().trim(); renderProductGrid(); });
+    prodCategoryFilter = document.getElementById('prodCategoryFilter').value;   // se a categoria salva não existe mais, volta pra "todas" (sem filtro escondido)
+    document.getElementById('prodSearch').addEventListener('input', (e) => { prodSearchRaw = e.target.value; prodSearch = prodSearchRaw.toLowerCase().trim(); renderProductGrid(); });
     document.getElementById('prodCategoryFilter').addEventListener('change', (e) => { prodCategoryFilter = e.target.value; renderProductGrid(); });
     document.getElementById('newProductBtn').addEventListener('click', () => openProductModal(null));
 

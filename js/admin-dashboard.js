@@ -477,7 +477,6 @@
     const d = computeProdutosData(ficha);
     const catName = (id) => (id && A.CATEGORY_NAME) ? A.CATEGORY_NAME(id) : '—';
     const top = d.rows.filter(r => r.revenue > 0).sort((a, b) => b.revenue - a.revenue);
-    const table = d.rows.slice().sort((a, b) => b.revenue - a.revenue || b.qty - a.qty || a.name.localeCompare(b.name));
     const okCount = d.eligible.length;
     const bcgReady = d.medX !== null;
 
@@ -513,17 +512,14 @@
 
       <div class="card dash-card" style="margin-top:16px;">
         <h3>Desempenho por produto — ${PERIOD_LABELS[dashPeriod]}</h3>
-        <div style="overflow-x:auto;"><table class="dash-table"><thead><tr><th>Produto</th><th>Categoria</th><th>Qtd.</th><th>Receita</th><th>ABC</th><th>Preço</th><th>Custo (CMV)</th><th>Margem</th><th>Lucro bruto est.</th><th>BCG</th></tr></thead><tbody>
-          ${table.map(r => {
-            const cmvTxt = r.cmv !== null ? formatBRL(r.cmv) : `<span class="muted">${r.cmvStatus === 'semficha' ? 'sem ficha' : 'insumo sem custo'}</span>`;
-            const q = r.bcg ? BCG[r.bcg] : null;
-            return `<tr><td><strong>${escapeHtml(r.name)}</strong>${r.inCatalog ? '' : ' <span class="muted" style="font-size:0.72rem;">(fora do cardápio)</span>'}</td><td class="muted">${escapeHtml(catName(r.category))}</td><td>${fmtNum(r.qty)}</td><td>${formatBRL(r.revenue)}</td><td>${r.abc || '—'}</td><td>${r.price !== null ? formatBRL(r.price) : '—'}</td><td>${cmvTxt}</td><td>${fmtPct(r.margemPct)}</td><td>${r.lucro !== null ? formatBRL(r.lucro) : '—'}</td><td>${q ? q.icon + ' ' + q.nome : '—'}</td></tr>`;
-          }).join('') || '<tr><td colspan="10" class="muted">Sem produtos.</td></tr>'}
-        </tbody></table></div>
+        ${gfShellHtml(prodGrid, d.rows, prodTbodyHtml(gfRows(prodGrid, d.rows), d.rows))}
       </div>
 
       ${notCard(`<p class="muted" style="margin:0;font-size:0.8rem;"><strong>Como ler:</strong> <em>CMV</em> = soma de (quantidade da ficha técnica × custo por unidade) de cada insumo do produto. <em>Margem</em> = (preço atual − CMV) ÷ preço atual, sem considerar adicionais. <em>ABC</em>: A = produtos que somam até 80% da receita, B = até 95%, C = o restante. A matriz é uma adaptação da BCG (popularidade × margem, em vez de participação × crescimento). Cada item vendido é ligado ao produto pelo código interno gravado no pedido, então renomear um produto não perde o histórico. Pedidos antigos sem esse código são ligados pelo nome; se o produto também não existir mais, aparece como “fora do cardápio”.</p>`)}
     `;
+
+    gfWire(prodGrid, (full) => prodRefresh(d, full));
+    prodRefresh(d, false);
 
     destroyCharts();
     if (window.Chart) {
@@ -612,9 +608,9 @@
         <div class="kpi">Margem média<b>${fmtPct(d.margemMedia)}</b></div>
       </div>
       ${quad}
-      <h3>Desempenho por produto</h3>
+      <h3>Desempenho por produto${gfActive(prodGrid) ? ` (filtrado: ${gfRows(prodGrid, d.rows).length} de ${d.rows.length})` : ''}</h3>
       <table><thead><tr><th>Produto</th><th>Categoria</th><th>Qtd.</th><th>Receita</th><th>ABC</th><th>Preço</th><th>CMV</th><th>Margem</th><th>Lucro bruto est.</th><th>BCG</th></tr></thead><tbody>
-        ${d.rows.slice().sort((a, b) => b.revenue - a.revenue || b.qty - a.qty).map(x => `<tr><td>${escapeHtml(x.name)}</td><td>${escapeHtml(catName(x.category))}</td><td>${fmtNum(x.qty)}</td><td>${formatBRL(x.revenue)}</td><td>${x.abc || '—'}</td><td>${x.price !== null ? formatBRL(x.price) : '—'}</td><td>${x.cmv !== null ? formatBRL(x.cmv) : (x.cmvStatus === 'semficha' ? 'sem ficha' : 'insumo sem custo')}</td><td>${fmtPct(x.margemPct)}</td><td>${x.lucro !== null ? formatBRL(x.lucro) : '—'}</td><td>${x.bcg ? BCG[x.bcg].nome : '—'}</td></tr>`).join('')}
+        ${gfRows(prodGrid, d.rows).map(x => `<tr><td>${escapeHtml(x.name)}</td><td>${escapeHtml(catName(x.category))}</td><td>${fmtNum(x.qty)}</td><td>${formatBRL(x.revenue)}</td><td>${x.abc || '—'}</td><td>${x.price !== null ? formatBRL(x.price) : '—'}</td><td>${x.cmv !== null ? formatBRL(x.cmv) : (x.cmvStatus === 'semficha' ? 'sem ficha' : 'insumo sem custo')}</td><td>${fmtPct(x.margemPct)}</td><td>${x.lucro !== null ? formatBRL(x.lucro) : '—'}</td><td>${x.bcg ? BCG[x.bcg].nome : '—'}</td></tr>`).join('')}
       </tbody></table>
       <p class="note">CMV = soma (quantidade da ficha técnica × custo por unidade). Margem sem adicionais. ABC: A até 80% da receita, B até 95%, C o restante.</p>`;
     openReport('Relatório de Produtos', body);
@@ -624,36 +620,189 @@
   const DETALHE_STEP = 50;
   let detalheShown = DETALHE_STEP;   // quantos pedidos aparecem; "Mostrar mais" soma mais 50
 
+  /* ---------------- Motor de filtros e ordenação por coluna (Desempenho por produto e Vendas detalhadas) ---------------- */
+  const gfDigits = (s) => String(s == null ? '' : s).replace(/\D/g, '');
+  const gfFresh = (cfg) => { const f = {}; cfg.cols.forEach(c => { f[c.key] = (c.type === 'range' || c.type === 'daterange') ? ['', ''] : ''; }); return f; };
+  const gfActive = (cfg) => cfg.cols.some(c => { const v = cfg.f[c.key]; return Array.isArray(v) ? (v[0].trim() || v[1].trim()) : String(v).trim(); });
+  const gfSortVal = (c, r) => (c.sort ? c.sort(r) : c.value(r));
+
+  function gfRows(cfg, rows) {
+    const out = rows.filter(r => cfg.cols.every(c => {
+      const v = cfg.f[c.key], val = c.value(r);
+      if (c.type === 'text') {
+        const t = foldText(v).trim();
+        if (!t) return true;
+        if (foldText(val).includes(t)) return true;
+        const dg = gfDigits(t);
+        return !!c.digits && dg.length >= 3 && gfDigits(val).includes(dg);
+      }
+      if (c.type === 'select') return v === '' || String(val) === v;
+      if (c.type === 'range') return inRange(val, v);
+      if (c.type === 'daterange') {
+        const lo = v[0] ? new Date(v[0] + 'T00:00:00').getTime() : null, hi = v[1] ? new Date(v[1] + 'T23:59:59.999').getTime() : null;
+        return (lo === null || val >= lo) && (hi === null || val <= hi);
+      }
+      return true;
+    }));
+    const col = cfg.cols.find(c => c.key === cfg.sort.key) || cfg.cols[0], f = cfg.sort.dir === 'asc' ? 1 : -1;
+    return out.sort((x, y) => {
+      const a = gfSortVal(col, x), b = gfSortVal(col, y);
+      const aN = a === null || a === undefined, bN = b === null || b === undefined;
+      if (aN && bN) return cfg.tiebreak(x, y);
+      if (aN) return 1;     // vazios ("sem custo", "—") sempre no fim, crescente ou decrescente
+      if (bN) return -1;
+      const c = typeof a === 'string' ? a.localeCompare(b) : a - b;
+      return c * f || cfg.tiebreak(x, y);
+    });
+  }
+
+  function gfTableHtml(cfg, all, tbodyHtml) {
+    const arrow = (k) => cfg.sort.key === k ? (cfg.sort.dir === 'asc' ? '▲' : '▼') : '↕';
+    const control = (c) => {
+      const v = cfg.f[c.key], id = `gf_${cfg.id}_${c.key}`, lab = escapeHtml(c.label);
+      if (c.type === 'text') return `<input type="text" id="${id}" data-gf="${c.key}" placeholder="Filtrar…" value="${escapeHtml(v)}" aria-label="Filtrar: ${lab}">`;
+      if (c.type === 'select') {
+        const opts = [['', 'Todos'], ...c.options(all)];
+        if (v !== '' && !opts.some(([val]) => String(val) === v)) { cfg.f[c.key] = ''; }   // opção sumiu (ex.: mudou o período): nunca deixa filtro escondido
+        const cur = cfg.f[c.key];
+        return `<select id="${id}" data-gf="${c.key}" aria-label="Filtrar: ${lab}">${opts.map(([val, text]) => `<option value="${escapeHtml(String(val))}"${String(val) === cur ? ' selected' : ''}>${escapeHtml(text)}</option>`).join('')}</select>`;
+      }
+      const type = c.type === 'daterange' ? 'date' : 'text';
+      const extra = c.type === 'daterange' ? '' : ' inputmode="decimal"';
+      const ph = (w) => c.type === 'daterange' ? '' : ` placeholder="${w}"`;
+      return `<div class="ins-range"><input type="${type}"${extra} id="${id}_min" data-gf="${c.key}" data-idx="0"${ph('mín')} value="${escapeHtml(v[0])}" aria-label="${lab}: ${c.type === 'daterange' ? 'de' : 'mínimo'}"><input type="${type}"${extra} id="${id}_max" data-gf="${c.key}" data-idx="1"${ph('máx')} value="${escapeHtml(v[1])}" aria-label="${lab}: ${c.type === 'daterange' ? 'até' : 'máximo'}"></div>`;
+    };
+    return `<table class="dash-table"><thead>
+      <tr>${cfg.cols.map(c => `<th${c.align ? ` style="text-align:${c.align};"` : ''}><button type="button" class="ins-sort${cfg.sort.key === c.key ? ' is-sorted' : ''}" data-sort="${c.key}">${escapeHtml(c.label)} <span class="arr">${arrow(c.key)}</span></button></th>`).join('')}</tr>
+      <tr class="ins-filter-row">${cfg.cols.map(c => `<th>${control(c)}</th>`).join('')}</tr>
+    </thead><tbody id="gf_${cfg.id}_tbody">${tbodyHtml}</tbody></table>`;
+  }
+  function gfShellHtml(cfg, all, tbodyHtml) {
+    return `<div class="ins-toolbar"><span class="muted" id="gf_${cfg.id}_count"></span><button type="button" class="btn btn-secondary" id="gf_${cfg.id}_clear" style="padding:6px 12px;font-size:0.78rem;">Limpar filtros</button></div>
+      <div id="gf_${cfg.id}_wrap" style="overflow-x:auto;">${gfTableHtml(cfg, all, tbodyHtml)}</div>
+      <p class="muted" style="margin:8px 0 0;font-size:0.75rem;">Clique no título para ordenar. Os filtros combinam entre si e ficam guardados enquanto você navega.</p>`;
+  }
+  function gfStatus(cfg, shown, total, noun) {
+    const c = document.getElementById(`gf_${cfg.id}_count`);
+    if (c) c.textContent = `Mostrando ${shown} de ${total} ${noun}${gfActive(cfg) ? ' (filtros ativos)' : ''}`;
+    const b = document.getElementById(`gf_${cfg.id}_clear`);
+    if (b) b.style.visibility = gfActive(cfg) ? 'visible' : 'hidden';
+  }
+  // onChange(true) = reconstruir cabeçalho (ordenação/limpar); onChange(false) = só atualizar as linhas (não tira o cursor do campo)
+  function gfWire(cfg, onChange) {
+    const wrap = document.getElementById(`gf_${cfg.id}_wrap`);
+    if (!wrap) return;
+    const onCtl = (e) => {
+      const el = e.target;
+      if (!el.dataset || el.dataset.gf === undefined) return;
+      if (el.dataset.idx !== undefined) cfg.f[el.dataset.gf][Number(el.dataset.idx)] = el.value; else cfg.f[el.dataset.gf] = el.value;
+      onChange(false);
+    };
+    wrap.addEventListener('input', onCtl);
+    wrap.addEventListener('change', onCtl);
+    wrap.addEventListener('click', (e) => {
+      const b = e.target.closest('.ins-sort');
+      if (!b) return;
+      const col = cfg.cols.find(c => c.key === b.dataset.sort);
+      cfg.sort = { key: col.key, dir: cfg.sort.key === col.key ? (cfg.sort.dir === 'asc' ? 'desc' : 'asc') : ((col.type === 'text' || col.type === 'select') ? 'asc' : 'desc') };
+      onChange(true);
+    });
+    const clr = document.getElementById(`gf_${cfg.id}_clear`);
+    if (clr) clr.addEventListener('click', () => { cfg.f = gfFresh(cfg); onChange(true); });
+  }
+
+  /* ---- Desempenho por produto ---- */
+  const catLabel = (id) => (id && A.CATEGORY_NAME) ? A.CATEGORY_NAME(id) : '—';
+  const BCG_ORDER = ['estrela', 'vaca', 'duvida', 'abacaxi'];
+  const prodGrid = {
+    id: 'prod', sort: { key: 'receita', dir: 'desc' },
+    tiebreak: (a, b) => b.qty - a.qty || a.name.localeCompare(b.name),
+    cols: [
+      { key: 'nome', label: 'Produto', type: 'text', value: r => r.name },
+      { key: 'cat', label: 'Categoria', type: 'select', value: r => catLabel(r.category), options: rows => { const n = [...new Set(rows.map(r => catLabel(r.category)))]; const reais = n.filter(c => c !== '—').sort((x, y) => x.localeCompare(y)).map(c => [c, c]); return n.includes('—') ? [...reais, ['—', 'Sem categoria']] : reais; } },
+      { key: 'qtd', label: 'Qtd.', type: 'range', value: r => r.qty },
+      { key: 'receita', label: 'Receita', type: 'range', value: r => r.revenue },
+      { key: 'abc', label: 'ABC', type: 'select', value: r => r.abc || '—', sort: r => r.abc || null, options: () => [['A', 'A'], ['B', 'B'], ['C', 'C'], ['—', 'Sem venda']] },
+      { key: 'preco', label: 'Preço', type: 'range', value: r => r.price },
+      { key: 'cmv', label: 'Custo (CMV)', type: 'select', value: r => r.cmvStatus, sort: r => r.cmv, options: () => [['ok', 'Com custo'], ['semficha', 'Sem ficha técnica'], ['incompleto', 'Insumo sem custo']] },
+      { key: 'margem', label: 'Margem', type: 'range', value: r => r.margemPct },
+      { key: 'lucro', label: 'Lucro bruto est.', type: 'range', value: r => r.lucro },
+      { key: 'bcg', label: 'BCG', type: 'select', value: r => r.bcg || 'none', sort: r => (r.bcg ? BCG_ORDER.indexOf(r.bcg) : null), options: () => [...BCG_ORDER.map(k => [k, `${BCG[k].icon} ${BCG[k].nome}`]), ['none', 'Sem classificação']] },
+    ],
+  };
+  prodGrid.f = gfFresh(prodGrid);
+  function prodRowHtml(r) {
+    const cmvTxt = r.cmv !== null ? formatBRL(r.cmv) : `<span class="muted">${r.cmvStatus === 'semficha' ? 'sem ficha' : 'insumo sem custo'}</span>`;
+    const q = r.bcg ? BCG[r.bcg] : null;
+    return `<tr><td><strong>${escapeHtml(r.name)}</strong>${r.inCatalog ? '' : ' <span class="muted" style="font-size:0.72rem;">(fora do cardápio)</span>'}</td><td class="muted">${escapeHtml(catLabel(r.category))}</td><td>${fmtNum(r.qty)}</td><td>${formatBRL(r.revenue)}</td><td>${r.abc || '—'}</td><td>${r.price !== null ? formatBRL(r.price) : '—'}</td><td>${cmvTxt}</td><td>${fmtPct(r.margemPct)}</td><td>${r.lucro !== null ? formatBRL(r.lucro) : '—'}</td><td>${q ? q.icon + ' ' + q.nome : '—'}</td></tr>`;
+  }
+  function prodTbodyHtml(rows, all) {
+    return rows.map(prodRowHtml).join('') || `<tr><td colspan="10" class="muted"${all.length ? ' style="padding:14px;"' : ''}>${all.length ? 'Nenhum produto com esses filtros.' : 'Sem produtos.'}</td></tr>`;
+  }
+  function prodRefresh(d, full) {
+    const rows = gfRows(prodGrid, d.rows);
+    if (full) { const w = document.getElementById('gf_prod_wrap'); if (w) w.innerHTML = gfTableHtml(prodGrid, d.rows, prodTbodyHtml(rows, d.rows)); }
+    else { const tb = document.getElementById('gf_prod_tbody'); if (tb) tb.innerHTML = prodTbodyHtml(rows, d.rows); }
+    gfStatus(prodGrid, rows.length, d.rows.length, 'produto' + (d.rows.length === 1 ? '' : 's'));
+  }
+
+  /* ---- Vendas detalhadas ---- */
+  const detGrid = {
+    id: 'det', sort: { key: 'data', dir: 'desc' },
+    tiebreak: (a, b) => b.createdAt - a.createdAt,
+    cols: [
+      { key: 'data', label: 'Data/Hora do pedido', type: 'daterange', value: o => o.createdAt },
+      { key: 'cliente', label: 'Cliente', type: 'text', value: o => o.customer || '' },
+      { key: 'tel', label: 'Telefone', type: 'text', digits: true, value: o => o.phone || '' },
+      { key: 'prod', label: 'Produtos', type: 'text', value: o => (o.items || []).map(i => i.name).join(' ') },
+      { key: 'pag', label: 'Forma de pagamento', type: 'select', value: o => o.payment || '—', options: rows => [...new Set(rows.map(o => o.payment || '—'))].sort((x, y) => x.localeCompare(y)).map(p => [p, p]) },
+      { key: 'tipo', label: 'Entrega/Retirada', type: 'select', value: o => (o.modality === 'entrega' ? 'entrega' : 'retirada'), options: () => [['entrega', 'Entrega'], ['retirada', 'Retirada']] },
+      { key: 'bairro', label: 'Bairro', type: 'text', value: o => o.area || '' },
+      { key: 'end', label: 'Endereço', type: 'text', value: o => [o.address, o.area].filter(Boolean).join(' — ') },
+      { key: 'total', label: 'Total', type: 'range', value: o => o.total, align: 'right' },
+    ],
+  };
+  detGrid.f = gfFresh(detGrid);
+  function detRowHtml(o) {
+    const produtos = (o.items || []).map(i => `${escapeHtml(String(i.qty))}x ${escapeHtml(i.name || '')}`).join('<br>');
+    const enderecoCompleto = [o.address, o.area].filter(Boolean).join(' — ');
+    return `<tr><td style="white-space:nowrap;">${fmtDateTime(o.createdAt)}</td><td>${escapeHtml(o.customer || '')}</td><td style="white-space:nowrap;">${escapeHtml(o.phone || '')}</td><td>${produtos}</td><td>${escapeHtml(o.payment || '')}</td><td style="white-space:nowrap;">${o.modality === 'entrega' ? '🛵 Entrega' : '🏪 Retirada'}</td><td>${escapeHtml(o.area || '—')}</td><td>${escapeHtml(enderecoCompleto || '—')}</td><td style="text-align:right; white-space:nowrap;">${formatBRL(o.total)}</td></tr>`;
+  }
+  function detTbodyHtml(shown, all) {
+    return shown.map(detRowHtml).join('') || `<tr><td colspan="9" class="muted"${all.length ? ' style="padding:14px;"' : ''}>${all.length ? 'Nenhum pedido com esses filtros.' : 'Nenhum pedido no período.'}</td></tr>`;
+  }
+  function detRefresh(d, full) {
+    const all = d.orders, rows = gfRows(detGrid, all), shown = rows.slice(0, detalheShown);
+    const entregas = rows.filter(o => o.modality === 'entrega').length;
+    const kp = document.getElementById('detKpis');
+    if (kp) kp.innerHTML = kpi('Pedidos no período', String(rows.length), gfActive(detGrid) ? `filtrado: ${rows.length} de ${all.length}` : '')
+      + kpi('Total vendido', formatBRL(rows.reduce((s, o) => s + o.total, 0)))
+      + kpi('Entregas', String(entregas)) + kpi('Retiradas na loja', String(rows.length - entregas));
+    if (full) { const w = document.getElementById('gf_det_wrap'); if (w) w.innerHTML = gfTableHtml(detGrid, all, detTbodyHtml(shown, all)); }
+    else { const tb = document.getElementById('gf_det_tbody'); if (tb) tb.innerHTML = detTbodyHtml(shown, all); }
+    gfStatus(detGrid, rows.length, all.length, 'pedido' + (all.length === 1 ? '' : 's'));
+    const restantes = rows.length - shown.length;
+    const more = document.getElementById('detMore');
+    if (more) {
+      more.innerHTML = restantes > 0 ? `<button class="btn btn-secondary" id="detalheMoreBtn">Mostrar mais ${Math.min(DETALHE_STEP, restantes)} <span class="muted">(${restantes} restantes)</span></button>` : '';
+      const btn = document.getElementById('detalheMoreBtn');
+      if (btn) btn.addEventListener('click', () => { detalheShown += DETALHE_STEP; detRefresh(d, false); });
+    }
+  }
   function renderDetalheTab(container) {
     destroyCharts();
     const d = computeVendasData();
-    const orders = d.orders.slice().sort((a, b) => b.createdAt - a.createdAt); // mais recentes primeiro
-    const entregas = orders.filter(o => o.modality === 'entrega').length;
-    const shown = orders.slice(0, detalheShown);
-    const restantes = orders.length - shown.length;
-    const rowsHtml = shown.map(o => {
-      const produtos = (o.items || []).map(i => `${escapeHtml(String(i.qty))}x ${escapeHtml(i.name || '')}`).join('<br>');
-      const enderecoCompleto = [o.address, o.area].filter(Boolean).join(' — ');
-      return `<tr><td style="white-space:nowrap;">${fmtDateTime(o.createdAt)}</td><td>${escapeHtml(o.customer || '')}</td><td style="white-space:nowrap;">${escapeHtml(o.phone || '')}</td><td>${produtos}</td><td>${escapeHtml(o.payment || '')}</td><td style="white-space:nowrap;">${o.modality === 'entrega' ? '🛵 Entrega' : '🏪 Retirada'}</td><td>${escapeHtml(o.area || '—')}</td><td>${escapeHtml(enderecoCompleto || '—')}</td><td style="text-align:right; white-space:nowrap;">${formatBRL(o.total)}</td></tr>`;
-    }).join('');
-
     container.innerHTML = `
-      <div class="dash-kpi-row">
-        ${kpi('Pedidos no período', String(orders.length))}
-        ${kpi('Total vendido', formatBRL(d.faturamento))}
-        ${kpi('Entregas', String(entregas))}
-        ${kpi('Retiradas na loja', String(orders.length - entregas))}
-      </div>
+      <div class="dash-kpi-row" id="detKpis"></div>
       <div class="card dash-card" style="margin-top:16px;">
         <h3>Vendas detalhadas — ${PERIOD_LABELS[dashPeriod]}</h3>
-        <div style="overflow-x:auto;"><table class="dash-table"><thead><tr><th>Data/Hora do pedido</th><th>Cliente</th><th>Telefone</th><th>Produtos</th><th>Forma de pagamento</th><th>Entrega/Retirada</th><th>Bairro</th><th>Endereço</th><th style="text-align:right;">Total</th></tr></thead>
-          <tbody>${rowsHtml || '<tr><td colspan="9" class="muted">Nenhum pedido no período.</td></tr>'}</tbody></table></div>
-        ${restantes > 0 ? `<div style="text-align:center;margin-top:14px;"><button class="btn btn-secondary" id="detalheMoreBtn">Mostrar mais ${Math.min(DETALHE_STEP, restantes)} <span class="muted">(${restantes} restantes)</span></button></div>` : ''}
+        ${gfShellHtml(detGrid, d.orders, '')}
+        <div id="detMore" style="text-align:center;margin-top:14px;"></div>
       </div>
-      ${notCard(`<p class="muted" style="margin:0;font-size:0.8rem;">São os mesmos pedidos do Relatório Completo (pedidos não cancelados do período), aqui do mais recente para o mais antigo. Data/Hora é o momento em que o pedido foi criado. Pedidos de retirada não têm bairro nem endereço. O botão “Exportar PDF” gera o Relatório Completo.</p>`)}
+      ${notCard(`<p class="muted" style="margin:0;font-size:0.8rem;">São os mesmos pedidos do Relatório Completo (pedidos não cancelados do período). Data/Hora é o momento em que o pedido foi criado. Pedidos de retirada não têm bairro nem endereço. Os indicadores do topo acompanham os filtros. O botão “Exportar PDF” gera o Relatório Completo dos pedidos filtrados.</p>`)}
     `;
-    const more = document.getElementById('detalheMoreBtn');
-    if (more) more.addEventListener('click', () => { detalheShown += DETALHE_STEP; if (renderTabFn) renderTabFn(true); });
+    gfWire(detGrid, (full) => { detalheShown = DETALHE_STEP; detRefresh(d, full); });
+    detRefresh(d, true);
     return { kind: 'detalhe', d };
   }
 
@@ -773,8 +922,9 @@
     const os = A.orders || [];
     const st = os.map(o => o.status + (o.paymentStatus || '')).join('|');
     const ins = (A.insumos || []).map(i => `${i.id}:${i.quantidadeAtual}:${i.custoUnitario}`).join('|');
-    const pr = (A.products || []).map(p => `${p.id}:${p.name}:${p.price}:${p.promoPrice}:${p.active}`).join('|');
-    return `${os.length}#${st}#${ins}#${pr}#${dashPeriod}#${activeTabKey}`;
+    const pr = (A.products || []).map(p => `${p.id}:${p.name}:${p.category}:${p.price}:${p.promoPrice}:${p.active}`).join('|');
+    const cats = (A.categories || []).map(c => `${c.id}:${c.name}`).join('|');
+    return `${os.length}#${st}#${ins}#${pr}#${cats}#${dashPeriod}#${activeTabKey}`;
   }
 
   A.VIEW_RENDERERS['dashboard'] = function renderDashboardView() {
@@ -822,19 +972,22 @@
       exportBtn.style.display = '';
       lastSignature = dataSignature();
 
+      const act = document.activeElement;
+      let keep = null;
+      try { if (silent && act && act.id && content.contains(act)) keep = { id: act.id, s: act.selectionStart, e: act.selectionEnd }; } catch (_) { /* tipos de campo sem seleção */ }
+      const restoreFocus = () => { // devolve o cursor ao campo (ex.: filtro) que a pessoa estava usando
+        if (!keep) return;
+        const el = document.getElementById(keep.id);
+        if (el) { el.focus(); try { el.setSelectionRange(keep.s, keep.e); } catch (_) { /* select/date não têm seleção */ } }
+      };
       if (active === 'vendas') { lastResult = renderVendasTab(content); return; }
-      if (active === 'detalhe') { lastResult = renderDetalheTab(content); return; }
+      if (active === 'detalhe') { lastResult = renderDetalheTab(content); restoreFocus(); return; }
 
       if (!silent) { destroyCharts(); content.innerHTML = '<div class="card dash-card"><p class="muted">Carregando dados…</p></div>'; }
-      const act = document.activeElement;
-      const keep = (silent && act && act.id && content.contains(act)) ? { id: act.id, s: act.selectionStart, e: act.selectionEnd } : null;
       const ficha = await loadFicha(false);
       if (token !== renderToken || !document.getElementById('dashTabContent')) return; // usuário trocou de aba/tela enquanto carregava
       lastResult = active === 'insumos' ? renderInsumosTab(content, ficha) : renderProdutosTab(content, ficha);
-      if (keep) { // devolve o cursor ao campo (ex.: filtro) que a pessoa estava digitando
-        const el = document.getElementById(keep.id);
-        if (el) { el.focus(); try { el.setSelectionRange(keep.s, keep.e); } catch (_) { /* select não tem seleção */ } }
-      }
+      restoreFocus();
     }
     renderTabFn = renderActiveTab;
 
@@ -849,7 +1002,7 @@
     document.getElementById('dashExportBtn').addEventListener('click', () => {
       if (!lastResult) return;
       if (activeTabKey === 'vendas') exportVendasPdf(lastResult);
-      else if (lastResult.kind === 'detalhe') exportRelatorioCompletoPdf(lastResult.d);
+      else if (lastResult.kind === 'detalhe') exportRelatorioCompletoPdf({ ...lastResult.d, orders: gfRows(detGrid, lastResult.d.orders) });
       else if (lastResult.kind === 'insumos') exportInsumosPdf(lastResult);
       else if (lastResult.kind === 'produtos') exportProdutosPdf(lastResult);
     });
