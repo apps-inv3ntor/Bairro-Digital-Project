@@ -670,7 +670,7 @@
       const type = c.type === 'daterange' ? 'date' : 'text';
       const extra = c.type === 'daterange' ? '' : ' inputmode="decimal"';
       const ph = (w) => c.type === 'daterange' ? '' : ` placeholder="${w}"`;
-      return `<div class="ins-range"><input type="${type}"${extra} id="${id}_min" data-gf="${c.key}" data-idx="0"${ph('mín')} value="${escapeHtml(v[0])}" aria-label="${lab}: ${c.type === 'daterange' ? 'de' : 'mínimo'}"><input type="${type}"${extra} id="${id}_max" data-gf="${c.key}" data-idx="1"${ph('máx')} value="${escapeHtml(v[1])}" aria-label="${lab}: ${c.type === 'daterange' ? 'até' : 'máximo'}"></div>`;
+      return `<div class="ins-range"><input type="${type}"${extra} id="${id}_min" data-gf="${c.key}" data-idx="0"${ph('mín')} title="${c.type === 'daterange' ? 'A partir desta data (inclusive) — deixe vazio para não limitar' : 'Mínimo — deixe vazio para não limitar'}" value="${escapeHtml(v[0])}" aria-label="${lab}: ${c.type === 'daterange' ? 'de' : 'mínimo'}"><input type="${type}"${extra} id="${id}_max" data-gf="${c.key}" data-idx="1"${ph('máx')} title="${c.type === 'daterange' ? 'Até esta data (inclusive) — deixe vazio para não limitar' : 'Máximo — deixe vazio para não limitar'}" value="${escapeHtml(v[1])}" aria-label="${lab}: ${c.type === 'daterange' ? 'até' : 'máximo'}"></div>`;
     };
     return `<table class="dash-table"><thead>
       <tr>${cfg.cols.map(c => `<th${c.align ? ` style="text-align:${c.align};"` : ''}><button type="button" class="ins-sort${cfg.sort.key === c.key ? ' is-sorted' : ''}" data-sort="${c.key}">${escapeHtml(c.label)} <span class="arr">${arrow(c.key)}</span></button></th>`).join('')}</tr>
@@ -861,7 +861,7 @@
     const cats = [...new Set(d.rows.map(r => r.i.categoria).filter(Boolean))].sort((a, b) => a.localeCompare(b));
     const arrow = (k) => insSort.key === k ? (insSort.dir === 'asc' ? '▲' : '▼') : '↕';
     const sel = (v, cur) => cur === v ? ' selected' : '';
-    const range = (k, label) => `<div class="ins-range"><input type="text" inputmode="decimal" data-insf="${k}" data-idx="0" id="insF_${k}_min" placeholder="mín" value="${escapeHtml(insF[k][0])}" aria-label="${label}: mínimo"><input type="text" inputmode="decimal" data-insf="${k}" data-idx="1" id="insF_${k}_max" placeholder="máx" value="${escapeHtml(insF[k][1])}" aria-label="${label}: máximo"></div>`;
+    const range = (k, label) => `<div class="ins-range"><input type="text" inputmode="decimal" data-insf="${k}" data-idx="0" id="insF_${k}_min" placeholder="mín" title="Mínimo — deixe vazio para não limitar" value="${escapeHtml(insF[k][0])}" aria-label="${label}: mínimo"><input type="text" inputmode="decimal" data-insf="${k}" data-idx="1" id="insF_${k}_max" placeholder="máx" title="Máximo — deixe vazio para não limitar" value="${escapeHtml(insF[k][1])}" aria-label="${label}: máximo"></div>`;
     return `<table class="dash-table"><thead>
       <tr>${INS_COLS.map(([k, label]) => `<th><button type="button" class="ins-sort${insSort.key === k ? ' is-sorted' : ''}" data-sort="${k}">${label} <span class="arr">${arrow(k)}</span></button></th>`).join('')}</tr>
       <tr class="ins-filter-row">
