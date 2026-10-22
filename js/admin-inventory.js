@@ -18,6 +18,23 @@
     return { cor: 'pill-green', texto: 'Normal!' };
   }
 
+  // Filtros da lista: ficam guardados e a tela SEMPRE mostra o que está valendo (nada de filtro escondido)
+  let invSearchRaw = '', invCostFilter = '';
+  const foldText = (s) => String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const fmtCusto = (v) => Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+  const hasCusto = (i) => i.custoUnitario !== null && i.custoUnitario !== undefined;
+  function invVisible() {
+    const t = foldText(invSearchRaw).trim();
+    return (A.insumos || []).filter(i => {
+      if (t && !foldText(`${i.nome} ${i.categoria || ''}`).includes(t)) return false;
+      if (invCostFilter === 'sem' && hasCusto(i)) return false;
+      if (invCostFilter === 'com' && !hasCusto(i)) return false;
+      return true;
+    });
+  }
+  // Chamado pelo ciclo de 15s (admin-sync.js): atualiza só as linhas, sem recriar a busca nem tirar o cursor dela
+  window.__brasaInventoryRefresh = function () { if (document.getElementById('insumosTbody')) renderInsumosTable(); };
+
   A.VIEW_RENDERERS['estoque'] = function renderEstoque() {
     const root = document.getElementById('viewContent');
     root.innerHTML = `
@@ -27,24 +44,51 @@
         <button class="btn btn-secondary" id="importCsvBtn">📄 Importar CSV</button>
         <button class="btn btn-primary" id="newInsumoBtn">+ Novo insumo</button>
       </div>
+      <div class="toolbar">
+        <div class="toolbar__search"><span>🔍</span><input type="text" id="invSearch" placeholder="Buscar insumo ou categoria" value="${escapeHtml(invSearchRaw)}" autocomplete="off"></div>
+        <select id="invCostFilter" aria-label="Filtrar por custo">
+          <option value=""${invCostFilter === '' ? ' selected' : ''}>Todos os custos</option>
+          <option value="sem"${invCostFilter === 'sem' ? ' selected' : ''}>Só sem custo</option>
+          <option value="com"${invCostFilter === 'com' ? ' selected' : ''}>Só com custo</option>
+        </select>
+        <span class="muted" id="invCount" style="font-size:0.82rem;"></span>
+        <button class="btn btn-secondary" id="invClearBtn" style="padding:6px 12px; font-size:0.78rem;">Limpar filtros</button>
+      </div>
       <div class="card table-wrap">
         <table class="data-table">
-          <thead><tr><th>Insumo</th><th>Categoria</th><th>Quantidade</th><th>% Estoque</th><th>Status</th><th></th></tr></thead>
+          <thead><tr><th>Insumo</th><th>Categoria</th><th>Quantidade</th><th>% Estoque</th><th>Custo / unidade</th><th>Status</th><th></th></tr></thead>
           <tbody id="insumosTbody"></tbody>
         </table>
       </div>`;
     document.getElementById('newInsumoBtn').addEventListener('click', () => openInsumoModal(null));
     document.getElementById('importCsvBtn').addEventListener('click', () => document.getElementById('csvImportInput').click());
     document.getElementById('csvImportInput').addEventListener('change', handleCsvImport);
+    document.getElementById('invSearch').addEventListener('input', (e) => { invSearchRaw = e.target.value; renderInsumosTable(); });
+    document.getElementById('invCostFilter').addEventListener('change', (e) => { invCostFilter = e.target.value; renderInsumosTable(); });
+    document.getElementById('invClearBtn').addEventListener('click', () => {
+      invSearchRaw = ''; invCostFilter = '';
+      document.getElementById('invSearch').value = ''; document.getElementById('invCostFilter').value = '';
+      renderInsumosTable();
+    });
     renderInsumosTable();
   };
 
   function renderInsumosTable() {
     const tbody = document.getElementById('insumosTbody');
     if (!tbody) return;
-    const insumos = A.insumos || [];
+    const todos = A.insumos || [];
+    const insumos = invVisible();
+    const filtrando = !!(foldText(invSearchRaw).trim() || invCostFilter);
+    const cnt = document.getElementById('invCount');
+    if (cnt) cnt.textContent = todos.length ? `Mostrando ${insumos.length} de ${todos.length} insumo${todos.length === 1 ? '' : 's'}${filtrando ? ' (filtros ativos)' : ''}` : '';
+    const clr = document.getElementById('invClearBtn');
+    if (clr) clr.style.visibility = filtrando ? 'visible' : 'hidden';
+    if (!todos.length) {
+      tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="ic">📦</div><h3>Nenhum insumo cadastrado</h3><p>Cadastre manualmente ou importe uma planilha CSV.</p></div></td></tr>`;
+      return;
+    }
     if (!insumos.length) {
-      tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="ic">📦</div><h3>Nenhum insumo cadastrado</h3><p>Cadastre manualmente ou importe uma planilha CSV.</p></div></td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="7" class="muted" style="text-align:center; padding:24px;">Nenhum insumo com esses filtros.</td></tr>`;
       return;
     }
     tbody.innerHTML = insumos.map(i => {
@@ -61,6 +105,7 @@
           </div>
           <span class="muted" style="font-size:0.76rem;">${pct}%</span>
         </td>
+        <td>${hasCusto(i) ? `R$ ${fmtCusto(i.custoUnitario)} / ${escapeHtml(i.unidadeMedida)}` : '<span class="muted">sem custo</span>'}</td>
         <td><span class="pill ${st.cor}">${st.texto}</span></td>
         <td class="row-actions">
           <button class="icon-only-btn" data-edit-insumo="${i.id}" title="Editar">✏️</button>

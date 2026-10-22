@@ -176,7 +176,7 @@
       <div class="tab-panel" id="tabNotificacoes">
         <div class="card" style="padding:8px 24px; max-width:480px;">
           <div class="field-inline"><span class="fi-label">Notificar novos pedidos</span><button class="toggle ${A.settings.notifyNewOrder ? 'is-on' : ''}" data-notif="notifyNewOrder" type="button"></button></div>
-          <div class="field-inline"><span class="fi-label">Som ao receber pedido</span><button class="toggle ${A.settings.notifySound ? 'is-on' : ''}" data-notif="notifySound" type="button"></button></div>
+          <div class="field-inline"><span class="fi-label">Som ao receber pedido</span><button class="btn btn-secondary" id="testSoundBtn" type="button" title="Toca o som do aviso de pedido novo" style="padding:4px 10px; font-size:0.74rem; margin-left:auto; margin-right:12px;">🔊 Testar</button><button class="toggle ${A.settings.notifySound ? 'is-on' : ''}" data-notif="notifySound" type="button"></button></div>
           <div class="field-inline"><span class="fi-label">Alertar produtos esgotando</span><button class="toggle ${A.settings.notifyLowStock ? 'is-on' : ''}" data-notif="notifyLowStock" type="button"></button></div>
           <div style="padding:16px 0 4px;"><button class="btn btn-primary" id="saveNotifBtn">Salvar preferências</button></div>
         </div>
@@ -504,9 +504,12 @@
     });
 
     document.querySelectorAll('[data-notif]').forEach(t => t.addEventListener('click', function () { this.classList.toggle('is-on'); }));
+    const testSoundBtn = document.getElementById('testSoundBtn');
+    if (testSoundBtn) testSoundBtn.addEventListener('click', () => { if (window.__brasaSound) window.__brasaSound.play('test'); });
     document.getElementById('saveNotifBtn').addEventListener('click', async () => {
       document.querySelectorAll('[data-notif]').forEach(t => { A.settings[t.dataset.notif] = t.classList.contains('is-on'); });
       persist('admin_settings', A.settings);
+      if (window.__brasaSound) window.__brasaSound.refreshButton();   // o sino do topo acompanha o que foi salvo
       const sync = window.__brasaCatalogSync;
       if (sync) {
         const res = await sync.saveSettingsKey('notifications', { notifyNewOrder: A.settings.notifyNewOrder, notifySound: A.settings.notifySound, notifyLowStock: A.settings.notifyLowStock });

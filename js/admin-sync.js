@@ -264,6 +264,8 @@
       else if (prev.paymentStatus !== 'pago' && o.paymentStatus === 'pago') hasNewlyPaid = true;
     });
     A.orders = fresh;
+    // Som: antes de redesenhar telas, pra um erro de tela nunca silenciar o aviso (pedido novo tem prioridade sobre pagamento)
+    if (window.__brasaSound) window.__brasaSound.play(hasNewOrder ? 'newOrder' : hasNewlyPaid ? 'payment' : null);
     A.persist('admin_orders', A.orders);
     A.updateOrdersBadge();
     if (A.currentView === 'pedidos' && typeof window.__brasaOrdersRefresh === 'function') window.__brasaOrdersRefresh();
@@ -276,7 +278,9 @@
     if (!insumosErr && rawInsumos) {
       A.insumos = rawInsumos.map(insumoFromDb);
       A.persist('admin_insumos', A.insumos);
-      if (A.currentView === 'estoque') A.goToView('estoque');
+      // Estoque: atualiza só as linhas (não recria a busca nem tira o cursor); se o gancho não existir, redesenha como antes
+      if (A.currentView === 'estoque' && typeof window.__brasaInventoryRefresh === 'function') window.__brasaInventoryRefresh();
+      else if (A.currentView === 'estoque') A.goToView('estoque');
     }
 
     // Dashboard: redesenha só o conteúdo da aba (e só se algo mudou), sem voltar ao topo
@@ -342,6 +346,7 @@
           else if (row.key === 'how_it_works') A.settings.howItWorks = row.value;
         });
         A.persist('admin_settings', A.settings);
+        if (window.__brasaSound) window.__brasaSound.refreshButton();   // o sino do topo acompanha a preferência vinda do banco
 
         // Logo e nome no topo da barra lateral — sem isso ficava fixo em
         // "BRASA BURGER" mesmo depois de terraformar pra outro delivery.
