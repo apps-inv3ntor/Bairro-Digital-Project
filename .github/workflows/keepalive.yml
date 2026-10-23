@@ -1,0 +1,33 @@
+name: Supabase keep-alive
+
+on:
+  schedule:
+    # 7 janelas por dia (UTC) = 08h, 10h, 12h, 14h, 16h, 18h, 20h em Brasília.
+    # O script decide sozinho se hoje/agora faz parte do plano da semana.
+    - cron: '0 11,13,15,17,19,21,23 * * *'
+  workflow_dispatch:
+    inputs:
+      force_run:
+        description: 'Ignorar o plano e rodar agora (teste)'
+        type: boolean
+        default: true
+      skip_jitter:
+        description: 'Pular a espera de 5-45 min (teste)'
+        type: boolean
+        default: true
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rodar robô
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          FORCE_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.force_run || 'false' }}
+          SKIP_JITTER: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_jitter || 'false' }}
+          JITTER_MIN_MIN: '1'   # espera aleatória mínima (min)
+          JITTER_MAX_MIN: '10'  # espera aleatória máxima (min)
+        run: node scripts/keepalive.mjs
